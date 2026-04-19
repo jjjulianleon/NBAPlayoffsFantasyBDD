@@ -1,0 +1,22 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+*.log
+
+# Node.js
+node_modules/
+dist/
+.eslintcache
+
+# System
+.DS_Store
+Thumbs.db
+
+# Project specific
+data/*.log
+data/*.stdout
+data/kaggle/
+https:/

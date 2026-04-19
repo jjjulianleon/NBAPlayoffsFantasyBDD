@@ -1,0 +1,815 @@
+================================================================
+  PROMPT: FRONTEND REDESIGN — PLAYOFF HOOPS
+  Target agent: must explicitly invoke the "taste" skill (superpowers:taste
+  or equivalent design-quality skill) BEFORE writing any code. Do not skip.
+================================================================
+
+BEFORE YOU START
+
+You MUST invoke your `taste` skill first. If a "taste" / "frontend-design"
+/ "visual-design" / "superpowers:taste" skill is available, call it via the
+Skill tool and follow its checklist to completion. The goal is a
+production-grade, sports-broadcast-quality interface — not a generic
+dashboard. Do not write a single JSX file until the taste skill has been
+loaded and its rules applied.
+
+Also: this is a REDESIGN of an existing app, not a greenfield build. The
+backend, database, routes, and page list already exist. Keep the routing
+tree and API client untouched; rewrite ONLY the visual layer (pages,
+components, styles). Do not break any existing API call.
+
+================================================================
+CONTEXT — THE APP
+================================================================
+
+EXISTING FILE STRUCTURE (what you must rewrite in place — the routing
+tree and file paths below already exist, keep them exactly):
+
+  frontend/
+    src/
+      main.jsx               (entry — leave untouched)
+      App.jsx                (Routes defined here; preserve paths)
+      AuthContext.jsx        (leave untouched)
+      api.js                 (leave untouched — use it as the ONLY HTTP layer)
+      index.css              (REPLACE: new @theme tokens + fonts + component classes)
+      components/
+        Navbar.jsx           (REPLACE with new design)
+        (add all new shared components here — PlayerAvatar, TeamLogo,
+         Badge, StatBlock, RoundChip, Skeleton, Table, Toast, Modal,
+         EmptyState, DraftClock, LeagueCard, GameCard, PlayerRow)
+      pages/
+        Home.jsx            Login.jsx         Register.jsx
+        Players.jsx         PlayerDetail.jsx  HotCold.jsx
+        Games.jsx           Reports.jsx       Profile.jsx
+        Leagues.jsx         LeagueDetail.jsx  Draft.jsx
+        TeamRoster.jsx      (rewrite all 13 — do NOT add or remove files)
+
+EXISTING ROUTES (from src/App.jsx — do NOT add or rename routes):
+  /                     Home
+  /login                Login
+  /register             Register
+  /players              Players
+  /players/:id          PlayerDetail
+  /hot-cold             HotCold
+  /games                Games
+  /leagues              Leagues
+  /leagues/:id          LeagueDetail   (team creation lives inside this page as a modal/form — NOT a separate route)
+  /leagues/:id/draft    Draft
+  /teams/:id            TeamRoster
+  /reports              Reports
+  /profile              Profile
+
+API CLIENT (src/api.js) — these methods exist; use them verbatim:
+  api.register(data)              POST /auth/register
+  api.login(data)                 POST /auth/login
+  api.me()                        GET  /auth/me
+  api.updateProfile(data)         PUT  /auth/me
+  api.players(queryString)        GET  /players/?{queryString}
+  api.player(id)                  GET  /players/{id}
+  api.playerGames(id, limit)      GET  /players/{id}/games
+  api.hotCold(limit)              GET  /players/hot-cold
+  api.leaderboard(stat, limit)    GET  /players/leaderboard
+  api.createLeague(data)          POST /fantasy/leagues
+  api.leagues()                   GET  /fantasy/leagues
+  api.league(id)                  GET  /fantasy/leagues/{id}
+  api.joinLeague(id)              POST /fantasy/leagues/{id}/join
+  api.leagueLeaderboard(id)       GET  /fantasy/leagues/{id}/leaderboard
+  api.createTeam(leagueId, data)  POST /fantasy/leagues/{leagueId}/teams
+  api.roster(teamId)              GET  /fantasy/teams/{teamId}/roster
+  api.startDraft(leagueId)        POST /fantasy/leagues/{leagueId}/draft/start
+  api.draftPick(leagueId, pid)    POST /fantasy/leagues/{leagueId}/draft/pick
+  api.completeDraft(leagueId)     POST /fantasy/leagues/{leagueId}/draft/complete
+  api.addPlayer(teamId, pid, slot) POST /fantasy/teams/{teamId}/roster/add
+  api.dropPlayer(teamId, pid)     DELETE /fantasy/teams/{teamId}/roster/{pid}
+  api.dailyScoring(date, limit)   GET  /predictions/daily-scoring
+  api.games(round, limit)         GET  /predictions/games
+  api.teams()                     GET  /predictions/teams
+  api.scoutingReport(playerId)    GET  /scouting/{playerId}    (server caches; GET, not POST)
+  api.health()                    GET  /health
+
+If a feature you want to build needs data not exposed by api.js, DO NOT
+add new endpoints — either skip the feature or compute it client-side
+from existing endpoints.
+
+Playoff Hoops is a fantasy basketball application focused on NBA playoffs.
+Users register, create or join leagues, draft 8 real NBA players, track
+daily scoring with playoff-round multipliers (R1 x1.0, Semis x1.25, CF x1.5,
+Finals x2.0), monitor "hot/cold" streaks (last 5 games vs season average),
+and generate AI scouting reports via gpt-4o-mini. Data is real: 791 players,
+3.778 playoff games, 88.603 box scores, pulled from the Kaggle dataset
+`eoinamoore/historical-nba-data-and-player-box-scores` (2023-24, 2024-25,
+2025-26 seasons).
+
+TECH STACK (already installed — DO NOT change versions, DO NOT add TypeScript):
+- React 19.2.4 + Vite 8 (JSX only — this project is NOT TypeScript)
+- Tailwind CSS v4.2 via @tailwindcss/vite plugin (CSS-first config
+  using @import "tailwindcss" and @theme block inside src/index.css)
+- React Router v7.14 (same import surface as v6 for basic routing —
+  Routes, Route, Link, useNavigate, useLocation, useParams)
+- JWT in localStorage via `src/AuthContext.jsx` (useAuth hook exposes
+  { user, login, logout, loading })
+- HTTP client already implemented at `src/api.js` — the `api.*` object
+  has every method you need (api.players, api.hotCold, api.league,
+  api.draftPick, api.scoutingReport, api.games, api.teams, …). USE IT.
+  Do NOT fetch directly; do NOT invent new endpoints.
+- Backend at http://localhost:8000/api (Vite proxies /api → :8000)
+- New dependencies you MAY add: `lucide-react` for icons. Nothing else
+  unless strictly necessary.
+
+The current frontend is functional but looks like a student project. Your
+job: make it look like NBA.com / Yahoo Fantasy / ESPN Fantasy — broadcast
+polish, data density, team-colored accents, headshots everywhere,
+bold condensed numerals for stats.
+
+================================================================
+DESIGN LANGUAGE — "COURTSIDE"
+================================================================
+
+AESTHETIC TARGET: a fusion of NBA.com (bold, orange, jet black, dense
+tables), Yahoo Fantasy (purple-tinged nav, stat grids) and ESPN (red
+highlights, bracket energy). Think broadcast overlay + fantasy front
+office. NOT a landing page, NOT minimalist — it must feel LIVE and
+DATA-DENSE.
+
+COLOR TOKENS (define in index.css @theme for Tailwind v4):
+
+--color-bg:           #0A0A0B   /* near-black, not pure black */
+--color-bg-elev:      #141417   /* card surface */
+--color-bg-elev-2:    #1C1C21   /* hover / nested card */
+--color-border:       #2A2A30
+--color-border-strong:#3A3A42
+--color-text:         #F5F5F7
+--color-text-muted:   #9A9AA3
+--color-text-dim:     #5F5F68
+
+/* Basketball accent */
+--color-accent:       #F97316   /* NBA orange */
+--color-accent-hot:   #EF4444   /* used for "hot" streak badge */
+--color-accent-cold:  #3B82F6   /* used for "cold" streak badge */
+--color-accent-gold:  #F5B841   /* playoff / finals accent */
+--color-success:      #10B981
+--color-danger:       #DC2626
+
+/* Playoff round chips */
+--round-r1:    #6B7280
+--round-semi:  #3B82F6
+--round-cf:    #8B5CF6
+--round-finals:#F5B841
+
+Apply these globally: bg --color-bg, text --color-text. The entire app
+should feel dark-mode-native (no light theme toggle).
+
+TYPOGRAPHY
+
+Load via Google Fonts in index.html:
+
+  https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800;900&display=swap
+
+Tailwind font families:
+- font-display  -> 'Oswald', sans-serif          (section headings, hero)
+- font-stat     -> 'Barlow Condensed', sans-serif (all numeric stats, jersey numbers, scores)
+- font-body     -> 'Inter', sans-serif           (paragraphs, labels, table text)
+
+Rules:
+- Every stat value (PPG, RPG, fantasy pts, scores, rank) MUST render in
+  font-stat, font-weight 700-900, with slight negative letter-spacing
+  (tracking-tight or tracking-tighter). Numbers are the hero of this app.
+- Headings in font-display uppercase with tracking-wide.
+- Labels ("PPG", "REB", "AST") are font-body font-semibold uppercase
+  text-[10px] or text-xs, text-muted.
+
+SPACING / SHAPE
+- Corners: rounded-lg (8px) for cards; rounded-md (6px) for inputs;
+  rounded-full only for avatars, chips, player headshot circles.
+- No heavy shadows. Use thin borders (1px solid --color-border) and
+  hover states that brighten to --color-border-strong.
+- Section padding: py-10 md:py-14, px-4 md:px-8 lg:px-12.
+
+MOTION (use CSS transitions, not Framer Motion — keep bundle small)
+- All interactive elements: transition-colors duration-150.
+- Row hover in tables: bg-[--color-bg-elev-2].
+- Card entry: opacity 0 -> 1 + translateY(8px -> 0) over 200ms via
+  keyframe `fade-up` defined in index.css, staggered by nth-child where
+  appropriate.
+
+================================================================
+PLAYER IMAGERY — CRITICAL
+================================================================
+
+Player IDs in the database come from nba_api (stats.nba.com). The NBA CDN
+exposes official headshots at a predictable URL:
+
+  https://cdn.nba.com/headshots/nba/latest/1040x760/{player_id}.png
+
+Team logos (NBA team_id, already stored in nba_teams.team_id):
+
+  https://cdn.nba.com/logos/nba/{team_id}/primary/L/logo.svg
+
+Build a `<PlayerAvatar>` component:
+
+  props: playerId (number), size ("xs"|"sm"|"md"|"lg"|"xl"), teamId?, className?
+  sizes: xs=24 sm=32 md=48 lg=72 xl=128 (square, rounded-full, object-cover object-top)
+  - Renders <img src="https://cdn.nba.com/headshots/nba/latest/1040x760/${playerId}.png" />
+  - Background: solid team color if teamId provided (use a teamColor map),
+    otherwise bg-[--color-bg-elev-2].
+  - On error (player not in CDN): fall back to initials in font-display
+    uppercase over the team color background.
+  - loading="lazy", decoding="async".
+
+Build `<TeamLogo>` component the same way for NBA team logos. The <img>
+should sit on a dark circle with ring-1 ring-[--color-border].
+
+Every player listing, every leaderboard row, every roster slot, every
+draft board cell MUST show the PlayerAvatar. This is the single biggest
+visual differentiator from the current frontend.
+
+Build a `teamColors.ts` map keyed by NBA team abbreviation, e.g.:
+
+  { LAL: '#552583', BOS: '#007A33', GSW: '#1D428A', MIA: '#98002E', ... }
+
+Apply the team color as a 3px left border on player rows (border-l-[3px]
+border-l-[teamColor]) and as the ring on PlayerAvatar.
+
+================================================================
+GLOBAL CHROME — NAVBAR & LAYOUT
+================================================================
+
+NAVBAR (replaces frontend/src/components/Navbar.jsx)
+
+Fixed top, height 64px, bg-[--color-bg-elev] with border-b border-[--color-border].
+
+Layout (max-w-[1400px] mx-auto px-6 h-full flex items-center justify-between):
+
+LEFT:
+- Logo lockup: orange basketball SVG icon (22px) + "PLAYOFF HOOPS"
+  in font-display font-bold text-lg uppercase tracking-wider.
+  Logo is a Link to "/".
+- Playoff round indicator chip (pulled from a small API call to
+  /api/health or hardcoded for now): "CONFERENCE FINALS - APR 2026"
+  in a small pill bg-[--color-accent]/10 text-[--color-accent]
+  border border-[--color-accent]/30 rounded-full px-3 py-1 text-xs
+  font-body font-semibold uppercase.
+
+CENTER (nav links, gap-1):
+  Players / Streaks / Games / Reports / My Leagues
+
+  Each link: px-4 py-2 rounded-md text-sm font-body font-semibold
+  uppercase tracking-wide text-[--color-text-muted]
+  hover:text-[--color-text] hover:bg-[--color-bg-elev-2].
+
+  Active route (useLocation): text-white with an orange underline
+  (border-b-2 border-[--color-accent] pb-[6px]).
+
+RIGHT:
+- If not logged in: ghost "Sign in" link + filled orange "Join League"
+  button (bg-[--color-accent] text-black rounded-md px-4 py-2 text-xs
+  font-body font-bold uppercase tracking-wider).
+- If logged in: notifications bell icon (no function yet, just visual),
+  then a pill button with the user's initial avatar (bg-[--color-accent]
+  text-black font-stat font-bold) + username. Click opens a dropdown
+  (absolute right-0 mt-2 w-56 bg-[--color-bg-elev] border
+  border-[--color-border] rounded-lg shadow-2xl) with:
+  Profile / My Leagues / Sign out (red).
+
+Mobile (<768px): collapse center nav into a hamburger that drops a full-
+width panel with the same links stacked, each h-12.
+
+================================================================
+PAGE 1 — LOGIN / REGISTER ( /login, /register )
+================================================================
+
+Full-viewport split screen, grid-cols-1 md:grid-cols-2.
+
+LEFT PANEL (md:block hidden): background gradient from #0A0A0B to #1C1C21
+plus a full-bleed photo of a basketball hoop / arena (use Unsplash URL:
+https://images.unsplash.com/photo-1546519638-68e109498ffc?w=1600&q=80)
+with a dark gradient overlay (linear-gradient(135deg, rgba(10,10,11,0.85),
+rgba(249,115,22,0.25))). Over the image, centered:
+
+- Logo lockup (large)
+- Tagline in font-display italic text-4xl: "Draft like a GM. Win the Playoffs."
+- Three feature bullets with check icons:
+  * 791 real NBA players
+  * Playoff scoring multipliers (Finals x2.0)
+  * AI-powered scouting reports
+- Tiny print: "Data: 2023-26 NBA seasons. Powered by nba_api."
+
+RIGHT PANEL (form):
+- Centered max-w-sm.
+- "WELCOME BACK" label in font-body uppercase text-xs tracking-[0.2em]
+  text-[--color-text-muted].
+- "Sign in to your dynasty" in font-display text-3xl white.
+- Form: two floating-label inputs (email/username, password) with:
+  - h-12, bg-[--color-bg-elev], border border-[--color-border]
+  - focus:border-[--color-accent] focus:ring-2 focus:ring-[--color-accent]/20
+  - rounded-md px-4
+- "Sign in" submit button: full width, h-12, bg-[--color-accent]
+  hover:bg-orange-500, text-black font-body font-bold uppercase
+  tracking-wider rounded-md.
+- Error state: red alert bar above form.
+- Bottom link: "No account? Create one." -> /register.
+
+Register page mirrors layout with three inputs (username, email,
+password) and switches CTA to "Create account".
+
+================================================================
+PAGE 2 — HOME / DASHBOARD ( / )
+================================================================
+
+This is the marketing + authenticated dashboard in one. Layout:
+
+HERO (full-bleed, h-[70vh] min-h-[520px], relative overflow-hidden):
+
+- Background: a looping muted video of NBA playoff highlights. Source
+  fallback: an Unsplash photo of a packed arena at night
+  (https://images.unsplash.com/photo-1504450758481-7338eba7524a?w=2400&q=80).
+  Overlay a radial gradient from transparent center to near-black edges,
+  and a bottom-to-top gradient from bg to transparent over the lower 40%.
+- Upper-left corner (inset p-8): small badge "2026 NBA PLAYOFFS" in the
+  orange pill style.
+- Centered content (max-w-4xl mx-auto px-6 flex flex-col justify-end h-full
+  pb-16):
+  - Eyebrow: "FANTASY FOR PLAYOFFS ONLY" in font-body uppercase text-xs
+    tracking-[0.3em] text-[--color-accent].
+  - Headline in font-display italic-uppercase mix:
+      line 1 "DRAFT THE STARS."  text-6xl md:text-8xl font-bold leading-[0.9]
+      line 2 "WIN THE RING."     same size, text-[--color-accent]
+    tracking-tighter, text-shadow subtle.
+  - Subheadline: "Eight players. Four rounds. One champion lineup.
+    Playoff-multiplier scoring that rewards deep runs." font-body
+    text-lg text-white/80 max-w-xl.
+  - CTAs row: primary orange "Enter Your League" -> /leagues, secondary
+    ghost "Browse Players" -> /players.
+
+LIVE SCOREBOARD STRIP (sticks directly under hero, bg-[--color-bg-elev]
+border-y border-[--color-border], horizontally scrollable):
+
+- Uses `api.games(null, 8)` (GET /predictions/games?limit=8). Shows the
+  8 most recent playoff games. There is no "live today" endpoint — sort
+  client-side by game_date desc and render whichever come back.
+- Each tile (min-w-[220px] p-4 border-r border-[--color-border]):
+  - Top row: small playoff round chip + game date (MMM D, h:mm A).
+  - Two team rows: TeamLogo (sm) + abbreviation (font-display bold) +
+    score (font-stat text-3xl font-bold, loser dimmed to text-muted).
+  - Footer: "FINAL" or "LIVE" badge (red pulse dot for LIVE).
+- Horizontal scroll with a subtle gradient-mask on both edges.
+
+QUICK NAV CARDS (max-w-7xl mx-auto, grid grid-cols-2 md:grid-cols-4 gap-4,
+py-12):
+  - "Hot & Cold Players"  (icon: flame) -> /hot-cold
+  - "Playoff Leaderboard" (icon: trophy) -> /players/leaderboard
+  - "Today's Games"       (icon: calendar) -> /games
+  - "My Roster"           (icon: users) -> /leagues (only if logged in)
+
+Each card: bg-[--color-bg-elev] border border-[--color-border]
+rounded-lg p-5 hover:border-[--color-accent] hover:bg-[--color-bg-elev-2]
+transition-all cursor-pointer. Icon in orange circle top-left.
+
+TWO-COLUMN FEATURE BLOCKS (max-w-7xl, py-16, alternating):
+  1. "Every playoff minute counts."
+     - Body: the playoff-multiplier system (R1 x1.0, Semis x1.25,
+       CF x1.5, Finals x2.0).
+     - Right side: a visual showing the 4 rounds as chips stacked with
+       multipliers, colored using --round-* tokens.
+  2. "Rachas calientes y frias, en tiempo real."
+     - Body: how the hot/cold engine compares last 5 games to season
+       average (20% swing thresholds).
+     - Right side: live preview pulling /api/players/hot-cold?limit=3,
+       each row with PlayerAvatar + name + pts_pct_change in green/red.
+  3. "Scouting IA en un click."
+     - Body: gpt-4o-mini generates cached reports per player.
+     - Right side: a mock scouting card with bullet insights.
+
+FOOTER: bg-[--color-bg-elev] border-t border-[--color-border] py-8,
+three columns:
+- Logo + tagline
+- Links: About, Data, Credits, Contact
+- "Datos Kaggle · eoinamoore/historical-nba-data-and-player-box-scores"
+  in text-xs text-muted.
+
+================================================================
+PAGE 3 — PLAYERS INDEX ( /players )
+================================================================
+
+Goal: look like a broadcast player database. Dense, sortable, filterable,
+with images on every row.
+
+LAYOUT: sidebar (left, 260px, bg-[--color-bg-elev] border-r) + main.
+
+SIDEBAR (sticky top-16, h-[calc(100vh-4rem)] overflow-y-auto p-6):
+- Search: input "Search player..." with a magnifier icon, debounced
+  350ms, sends ?search=.
+- Team filter: vertical list of 30 NBA teams from `api.teams()` (GET
+  /predictions/teams). Each row: TeamLogo (xs) + abbreviation + full
+  name (font-body text-sm). Click toggles active and re-queries
+  api.players with ?team={abbr}.
+- Position filter: pill group (G / F / C / G-F / F-C), multi-select.
+- "Playoff status" filter: Active / Eliminated radio pair (uses
+  t.is_eliminated from the view).
+- "Reset filters" ghost button at bottom.
+
+MAIN:
+- Header row: "PLAYERS" in font-display text-3xl + a stat bar showing
+  "{count} players · filtered by {active filters}".
+- Sort dropdown (right-aligned): default "PPG ↓"; options include
+  PPG / RPG / APG / STL / BLK / Fantasy Avg / Games / Name A-Z.
+- Results table:
+    Columns: # | Player | Team | Pos | GP | PPG | RPG | APG | STL | BLK | FPPG
+    Each row:
+      - h-16 border-b border-[--color-border], hover:bg-[--color-bg-elev-2]
+      - Cell 1: rank number in font-stat text-muted
+      - Cell 2: PlayerAvatar (sm) + "First LAST" (LAST in font-display
+        uppercase bold) + tiny "#jersey · POS" below in text-muted
+      - Cell 3: TeamLogo (xs) + abbreviation (font-display)
+      - Cells 4+: font-stat font-bold text-lg white, tabular-nums
+      - If season_ppg === 0: entire row dimmed (opacity-60)
+      - Row click -> /players/:id (React Router navigate)
+- Pagination: load-more button "Show 50 more" with offset increment, or
+  infinite scroll with IntersectionObserver (pick one and commit).
+
+Empty state: centered illustration (a ball emoji is NOT acceptable — use
+a simple SVG of a hoop in --color-border-strong) + "No players match
+your filters." + reset button.
+
+================================================================
+PAGE 4 — PLAYER DETAIL ( /players/:id )
+================================================================
+
+This is the hero page. Think "player card in NBA 2K" meets ESPN player
+profile.
+
+HERO BANNER (h-[360px] relative overflow-hidden):
+- Background: team primary color (from teamColors map) gradient (135deg,
+  from teamColor 0%, to bg 70%).
+- Right side: full-bleed PlayerAvatar (xl doubled: width 360px, height
+  auto, object-cover object-top), positioned absolute right-0 bottom-0,
+  slightly cropped. The image is large — it's the visual anchor.
+- Left content (max-w-xl p-10 relative z-10):
+  - Tiny row: TeamLogo (sm) + team full name + jersey number in font-stat
+    text-3xl white/60.
+  - Player name in TWO LINES:
+      First name:  font-display text-4xl font-semibold italic white/80
+      LAST NAME:   font-display text-7xl font-black uppercase tracking-tight
+  - Position + height/weight line (if available in DB).
+  - Streak badge: if hot -> red flame pill "HOT +{pct}%"; cold -> blue
+    snowflake pill "COLD {pct}%"; else gray "NEUTRAL". Fetch by filtering
+    /api/players/hot-cold by this player_id or add a single-player API.
+
+STATS STRIP (directly under banner, bg-[--color-bg-elev] border-y):
+- Flex row, justify-between, px-10 py-6.
+- Five stat blocks: PPG, RPG, APG, SPG, BPG.
+- Each: label (tiny uppercase muted) on top; value in font-stat text-5xl
+  font-black white below. Tabular-nums.
+
+TABS ROW (border-b border-[--color-border] px-10):
+- "Overview" / "Game Log" / "Scouting (AI)" / "Fantasy Impact"
+- Active tab: text-white with orange underline. Inactive: text-muted.
+
+OVERVIEW TAB:
+- Two columns (md:grid-cols-[2fr_1fr] gap-8 px-10 py-8):
+  - Left: a "Season Arc" mini chart (simple SVG line chart of last N
+    games' fantasy_points). If no charting lib, render as a sparkline
+    with <path>. Below chart: auto-generated blurb with counts from
+    /api/players/:id/games (e.g., "Averaged 28.4 pts over his last 5").
+  - Right: "Trends" card with 3 rows: Last 5 games PPG, Season PPG, Diff %
+    (colored green/red). Below it: "Availability" card with is_eliminated
+    badge; if eliminated, show "OFFSEASON - not draftable" warning in red.
+
+GAME LOG TAB:
+- Full-width table, same stat-heavy style as Players Index but with
+  Date | Matchup | MIN | PTS | REB | AST | STL | BLK | 3PM | FG | FT | +/- | FP.
+- Highlight the top game (max fantasy_points) with a thin orange left
+  border.
+- "Show more" button increases limit in 20-game increments.
+
+SCOUTING TAB:
+- Call `api.scoutingReport(playerId)` (GET /scouting/{id}; server-side
+  cached, first call may take 3-6s). Show a loading shimmer (skeleton
+  rows) while pending. Render returned text (may be markdown-ish) in a
+  prose-invert container. Add a disclaimer strip at the bottom:
+  "Generated by gpt-4o-mini. Validate against your own research."
+
+FANTASY IMPACT TAB:
+- Show which user leagues currently roster this player (requires a new
+  or existing endpoint; if none available, render an empty-state "Not
+  rostered in any of your leagues").
+- Show playoff-round projected impact using multipliers applied to
+  season_ppg.
+
+================================================================
+PAGE 5 — HOT / COLD ( /hot-cold )
+================================================================
+
+Layout: two columns side by side on md+, single on mobile.
+
+HEADER (max-w-7xl mx-auto px-8 pt-10 pb-6):
+- Title "HOT & COLD" in font-display text-5xl, mixed color: HOT in red,
+  and COLD in blue, "&" in white.
+- Subtitle: "Last 5 games vs season average. Thresholds: +/-20%."
+
+TWO COLUMNS:
+- LEFT card (bg-[--color-bg-elev] border-l-4 border-l-[--color-accent-hot]
+  rounded-lg): header "🔥 HOT LIST" (use Lucide Flame icon, not emoji,
+  colored red). Then a list of rows for streak_status='hot':
+    PlayerAvatar (md) + name (font-display uppercase) + team abbr
+    + big percent change (font-stat text-3xl text-red-400 "+{pct}%")
+    + smaller line "Season {ppg} -> Last5 {last5_ppg}"
+  Up to 10 rows, each clickable -> player detail.
+- RIGHT card identical but blue border, Lucide Snowflake icon, filters
+  to streak_status='cold'.
+
+Below both columns, a "NEUTRAL" strip (collapsed by default, expand button
+"Show 20 neutral players") renders the rest.
+
+================================================================
+PAGE 6 — GAMES ( /games )
+================================================================
+
+Layout: a vertical list grouped by date.
+
+HEADER:
+- Title "PLAYOFF GAMES" in font-display text-5xl.
+- Round filter pills: ALL / R1 / SEMIS / CF / FINALS. Each pill colored
+  from --round-* tokens when inactive (outlined), filled when active.
+- Date range picker (simple from/to inputs) OR just "Last 30 days" default.
+
+CONTENT:
+- For each date group: sticky date header in font-display uppercase
+  text-sm text-muted tracking-wider "APRIL 15, 2026".
+- Grid grid-cols-1 md:grid-cols-2 gap-4 of game cards:
+    - Each card bg-[--color-bg-elev] border border-[--color-border]
+      rounded-lg p-5 hover:border-[--color-accent]/40.
+    - Top row: round chip + game status (FINAL / LIVE / SCHEDULED).
+    - Main: two team blocks stacked, each with TeamLogo (md) + full name
+      (font-display lg) + score (font-stat text-5xl font-black, loser dim).
+    - Bottom strip: top scorer on each team, rendered as
+      "{PlayerAvatar xs} F. LAST 34 pts" in two rows.
+    - There is NO /games/:id route and no game-detail endpoint. Click
+      behavior: open an in-page modal (reuse <Modal>) that shows the
+      two top scorers on each team (already present in the game payload
+      as `top_home` / `top_away` fields from api.games — if those
+      fields are absent, just display the game card details expanded).
+      Do NOT invent a games/:id endpoint.
+
+================================================================
+PAGE 7 — REPORTS ( /reports )
+================================================================
+
+Analytical landing that aggregates the 6 SQL views. Grid of report cards:
+
+- v_league_leaderboard          -> "League Standings" (requires league pick)
+- v_player_performance          -> "Season Averages"
+- v_hot_cold_players            -> "Streaks Tracker" (links to /hot-cold)
+- v_roster_detail               -> "Roster Analyzer"
+- v_daily_scoring               -> "Daily Fantasy Scoring"
+- v_prediction_accuracy         -> "Model Accuracy (MAE)"
+
+Each card: big number hero (a KPI pulled from the view, e.g., "99.2%
+model confidence avg"), a one-line description, and a "Open report" link
+that routes to a sub-page or opens a full-width table view with
+sortable columns and CSV export button (client-side CSV generation).
+
+================================================================
+PAGE 8 — MY LEAGUES ( /leagues )
+================================================================
+
+HEADER:
+- Title "MY LEAGUES" + primary orange "+ New League" button on the right.
+
+CONTENT:
+- If leagues.length === 0: big empty state — illustration of an empty
+  bracket, headline "You haven't joined the playoffs yet.", two CTAs:
+  "Create a league" (orange) and "Join a league" (ghost, opens modal).
+- If leagues.length > 0: grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5
+  of league cards:
+    - Card: bg-[--color-bg-elev] border rounded-lg p-6.
+    - Top: league_name in font-display text-2xl + draft_status badge
+      (pending gray / in_progress orange pulse / completed green).
+    - Middle: stats row - members {n}/{max_teams}, scoring_type.
+    - Bottom: tiny mini-leaderboard preview (top 3 teams from
+      v_league_leaderboard), each row with rank medal (🥇🥈🥉 — use
+      Lucide Medal instead of emoji).
+    - Footer: "Open league -> " ghost button.
+
+"+ New League" modal: overlay bg-black/60, centered panel
+bg-[--color-bg-elev] w-[420px] rounded-xl p-8 border. Fields:
+league_name (required), max_teams (slider 4-12 default 8), scoring_type
+(radio: points / categories — default points). Submit -> POST
+/api/fantasy/leagues.
+
+================================================================
+PAGE 9 — LEAGUE DETAIL ( /leagues/:id )
+================================================================
+
+HERO (h-[260px] bg gradient + arena photo overlay similar to home hero):
+- League name in font-display text-6xl.
+- Commissioner tag line "Commissioner: @{creator_name}".
+- Draft status chip + key dates.
+- Right side: big action button contextual to state:
+    - pending + is_commissioner: "Start Draft" (orange)
+    - pending + !commissioner:   "Waiting for draft" (disabled)
+    - in_progress:                "Go to Draft Room" (pulsing orange)
+    - completed:                  "View Roster"
+
+TABS: Overview / Members / Leaderboard / Draft History / Settings.
+
+OVERVIEW TAB:
+- Three KPI cards side by side: Members, Rounds drafted, Days until next
+  lock.
+
+MEMBERS TAB:
+- Table of league_members JOIN users: avatar (initial), username, role,
+  joined_at, team_name (nullable), "invite link" copy button for
+  commissioner.
+
+LEADERBOARD TAB:
+- Uses GET /api/fantasy/leagues/:id/leaderboard.
+- Rendered as a broadcast standings table:
+    Rank | Logo | Team | Manager | Active | Total Pts
+  Rank cell: 1 gets gold bg, 2 silver, 3 bronze (small circle badge).
+  Total Pts in font-stat text-4xl font-black.
+  Row hover scales the rank cell subtly and highlights background.
+
+DRAFT HISTORY TAB:
+- Groups picks by round. Each pick card: pick #, team_name, PlayerAvatar,
+  "First LAST - POS - TEAM". If draft pending, empty state with
+  "Draft hasn't started yet."
+
+SETTINGS TAB (commissioner only):
+- Rename, change max_teams, regenerate draft order, dissolve league (red).
+
+================================================================
+PAGE 10 — TEAM ROSTER ( /teams/:id )
+================================================================
+
+This route already exists (TeamRoster.jsx). Redesign it as the "team
+home" for a fantasy roster.
+
+HEADER: big team_name in font-display text-5xl + username + league name
+(clickable breadcrumb back to /leagues/:league_id). Right side: total
+fantasy points for the season in a large font-stat block.
+
+ROSTER GRID: 8 slot cards (G1, G2, F1, F2, C, UTIL, BN1, BN2) arranged
+in a responsive grid. Each card:
+- PlayerAvatar (lg) on top
+- Name + team abbr
+- Inline stats: PPG / RPG / APG
+- Drop button (trash icon, hover red) calling api.dropPlayer(teamId, pid)
+- Empty slot: dashed border + "Add from free agents" button (opens a
+  modal with api.players() results to pick a free agent + slot, then
+  calls api.addPlayer(teamId, pid, slot)).
+
+Below: small "Recent Transactions" panel (if the backend returns them
+via api.roster response; otherwise skip).
+
+TEAM CREATION: there is NO separate create-team page. When a user
+clicks "Create team" inside /leagues/:id (LeagueDetail) and they don't
+already have one, show an inline modal with the team_name input and
+call api.createTeam(leagueId, { team_name }). On success, navigate to
+/teams/{new_team_id}.
+
+================================================================
+PAGE 11 — DRAFT ROOM ( /leagues/:id/draft )
+================================================================
+
+THIS IS THE MOST IMPORTANT SCREEN. Target: feel like a real draft stream.
+
+LAYOUT: three vertical panes on desktop (xl:grid-cols-[320px_1fr_360px]),
+stacked on mobile:
+
+LEFT PANE - DRAFT ORDER / CLOCK:
+- Sticky header with a pick clock (count-up since last pick, font-stat
+  text-7xl) and "ON THE CLOCK: {team_name}" label.
+- Below: ordered list of picks 1..(max_teams * 8). Each item shows
+  pick number, team name, and — if already picked — the PlayerAvatar
+  (xs) + surname. Upcoming picks dim. Current pick highlighted orange.
+
+CENTER PANE - PLAYER BOARD:
+- Search + filter bar (team, position, hide-drafted toggle).
+- Grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 of draftable
+  player cards:
+    - Card h-[160px] bg-[--color-bg-elev] border rounded-lg p-4 relative
+      overflow-hidden.
+    - Player headshot as a background image on the right half, faded
+      50%, object-cover object-top.
+    - Left side over image: position chip, name (font-display uppercase),
+      team abbr, PPG/RPG/APG stat strip.
+    - Hover: border orange, "DRAFT" button appears bottom-right.
+    - If already drafted: card grayscale, overlay "DRAFTED BY {team}".
+- Sort: default by season_ppg desc.
+
+RIGHT PANE - MY TEAM:
+- Header: "MY ROSTER" + roster progress "3 / 8".
+- Roster slot list: G1 / G2 / F1 / F2 / C / UTIL / BN1 / BN2, each row:
+    - Empty: dashed border, slot label in muted, "Next to fill" if
+      it matches current pick count.
+    - Filled: PlayerAvatar (sm) + name + tiny PPG stat.
+- Footer: "Complete Draft" button (commissioner only, disabled until
+  rounds complete).
+
+INTERACTIONS:
+- Click DRAFT on a card -> `api.draftPick(leagueId, playerId)`. On
+  success: optimistic update (move player to my roster + mark card as
+  drafted + advance clock). On error: toast with server detail.
+- Commissioner-only "Complete Draft" button -> `api.completeDraft(leagueId)`.
+- "Start Draft" lives in LeagueDetail (not here) and calls
+  `api.startDraft(leagueId)`.
+- Toast system: bottom-right, stacked, slide-in from right, auto-dismiss
+  after 4s.
+
+================================================================
+PAGE 12 — PROFILE ( /profile )
+================================================================
+
+Uses api.me() on mount and api.updateProfile(data) for edits.
+
+- Header: big initial avatar (bg orange, font-stat text-5xl) + username.
+- Fields: email (editable), member since date (read-only), total leagues
+  (count from api.leagues()), total points (sum across teams if
+  available, otherwise omit).
+- Save changes button -> api.updateProfile({ email, ... }).
+- Danger zone at bottom (red border card): Sign out (calls
+  useAuth().logout() then navigate('/login')). Do NOT add account
+  deletion — there is no backend endpoint for it.
+
+================================================================
+SHARED COMPONENTS TO BUILD
+================================================================
+
+1. `<PlayerAvatar playerId size teamId fallback />`        — described above.
+2. `<TeamLogo teamId size />`                              — NBA CDN logo.
+3. `<Badge tone="orange|red|blue|green|gold|gray">`       — pill, uppercase, font-body bold.
+4. `<StatBlock label value deltaPct?>`                    — stacked stat with optional green/red delta.
+5. `<RoundChip round={1|2|3|4} />`                        — colored round tag (R1/SEMIS/CF/FINALS).
+6. `<Skeleton variant="row|card|avatar" />`               — shimmering placeholder for loading states.
+7. `<Table columns rows sortable />`                      — generic dense table component; used everywhere.
+8. `<Toast />` + `useToast()` hook                        — bottom-right notifications.
+9. `<Modal open onClose title>` children                  — portal, focus trap, ESC to close.
+10. `<EmptyState icon title body action />`               — reuse for all empty lists.
+11. `<DraftClock startedAt />`                            — count-up timer in font-stat.
+12. `<LeagueCard />`, `<GameCard />`, `<PlayerRow />`     — page-specific composites.
+
+================================================================
+ACCESSIBILITY + QUALITY BAR
+================================================================
+
+- All interactive elements have visible focus rings
+  (focus:ring-2 focus:ring-[--color-accent] focus:ring-offset-2
+   focus:ring-offset-[--color-bg]).
+- Every <img> has alt text ("{player} headshot", "{team} logo").
+- Tables use <thead>/<tbody> and proper <th scope="col">.
+- Color contrast >= 4.5:1 for text; stat numerals at large sizes can
+  reach 3:1 but muted labels must pass.
+- Keyboard: full nav/drawer/tab/modal navigable; Draft Room must allow
+  drafting a highlighted card with Enter.
+- Respect prefers-reduced-motion: drop fade-ups and pulses.
+
+================================================================
+IMPLEMENTATION RULES
+================================================================
+
+- Preserve all existing API endpoints and the AuthContext behavior. Do
+  not rename routes or change localStorage keys.
+- Replace the current Tailwind v4 @theme tokens in src/index.css with
+  the new palette + font families listed above. Remove unused legacy
+  styles.
+- Delete old page contents and rewrite them; do not keep dead code
+  "just in case". No "removed" comments, no backwards-compat shims.
+- Use Lucide React for all icons (install if missing: `npm i lucide-react`).
+- No emoji in UI — always Lucide icons.
+- No charting library unless necessary; if one is used, prefer recharts
+  with a minimal theme.
+- When a piece of data is not available from the backend, DO NOT
+  invent placeholder counts or fake random players. Render the real
+  empty/loading state instead.
+- Verify the dev server (`npm run dev`) starts clean with zero console
+  errors after the rewrite. Navigate every route in a real browser
+  before declaring done.
+
+================================================================
+DELIVERABLE
+================================================================
+
+A fully rewritten frontend in place at `playoff-hoops/frontend/`, with:
+- New `src/index.css` (Tailwind v4: `@import "tailwindcss";` + `@theme`
+  block with the tokens above + fonts + component classes for shared
+  patterns like `.stat-cell`, `.table-row`, `.chip-*`).
+- New Navbar + AuthContext wiring unchanged.
+- All 13 existing pages rewritten: Home, Login, Register, Players,
+  PlayerDetail, HotCold, Games, Reports, Leagues, LeagueDetail, Draft,
+  TeamRoster, Profile. All reachable via the existing router (no route
+  changes).
+- The shared components listed above under `frontend/src/components/`.
+- `src/api.js` and `src/AuthContext.jsx` untouched.
+- No new npm dependencies other than `lucide-react`.
+- A fresh screenshot suite (optional) saved to `docs/screenshots/` for
+  the informe.
+
+Before returning, run through the taste skill's final review checklist
+and fix anything flagged. The measure of success: a classmate scrolling
+through this app should assume it was built by an NBA.com engineer, not
+a student project.
+
+================================================================
+END OF PROMPT
+================================================================
