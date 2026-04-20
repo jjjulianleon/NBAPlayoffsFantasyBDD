@@ -48,6 +48,10 @@ INSTALACION RAPIDA (3 PASOS)
    # Cargar datos NBA reales (descarga ~880 MB de Kaggle, primera vez):
    python data/seed_kaggle.py
 
+   # Restringir el pool fantasy a los 16 equipos de playoff actuales
+   # (idempotente — reaplicable tras cada seed_kaggle):
+   PGPASSWORD=playoff_dev psql -h localhost -U playoff -d playoff_hoops -f data/seed_playoffs.sql
+
    # Variables de entorno (.env en la raiz del proyecto):
    cat > .env <<'EOF'
    DATABASE_URL=postgresql://playoff:playoff_dev@localhost:5432/playoff_hoops

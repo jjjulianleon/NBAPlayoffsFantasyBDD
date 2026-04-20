@@ -228,7 +228,7 @@ function ExpandedGame({ game, detail, detailLoading }) {
         ) : (
           <div className="game-detail-card col-span-12 rounded-[22px] border border-[--color-border-strong] bg-[linear-gradient(180deg,rgba(28,28,33,0.98),rgba(18,18,22,0.98))] p-5">
             <p className="text-sm leading-6 text-[--color-text-muted]">
-              El frontend ya intenta consultar el detalle extendido del partido. Si el backend todavia no expone ese endpoint, este modal cae a un resumen seguro sin inventar stats.
+              Este partido no tiene box score detallado disponible en la base actual, asi que el modal muestra solo el resumen general del marcador.
             </p>
           </div>
         )}

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Query, HTTPException
 from ..database import get_pool
+from .service import build_lineup_recommendation
 
 router = APIRouter(prefix="/api/predictions", tags=["predictions"])
 
@@ -144,6 +145,16 @@ async def list_games(
             LIMIT $1
         """, limit)
     return [dict(r) for r in rows]
+
+
+@router.get("/lineup/{fantasy_team_id}")
+async def lineup_recommendation(fantasy_team_id: int):
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        try:
+            return await build_lineup_recommendation(conn, fantasy_team_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
 
 
 @router.get("/teams")

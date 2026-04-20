@@ -10,7 +10,7 @@ import Skeleton from '../components/Skeleton';
 import StatBlock from '../components/StatBlock';
 import Table from '../components/Table';
 import TeamLogo from '../components/TeamLogo';
-import { formatNumber, formatPercent, getPlayerName, normalizeScoutingText } from '../lib/utils';
+import { formatDateTime, formatNumber, formatPercent, getPlayerName, normalizeScoutingText } from '../lib/utils';
 import { getTeamColor } from '../lib/teamData';
 
 const TABS = [
@@ -61,11 +61,13 @@ export default function PlayerDetail() {
   const [report, setReport] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [streaks, setStreaks] = useState([]);
+  const [exposure, setExposure] = useState([]);
 
   useEffect(() => {
     api.player(id).then(setPlayer).catch(() => {});
     api.playerGames(id, limit).then(setGames).catch(() => {});
     api.hotCold(100).then(setStreaks).catch(() => {});
+    api.playerExposure(id).then(setExposure).catch(() => setExposure([]));
   }, [id, limit]);
 
   const streak = useMemo(() => {
@@ -153,7 +155,6 @@ export default function PlayerDetail() {
             <h2 className="font-display text-6xl uppercase leading-none tracking-tight text-white md:text-8xl">{player.last_name}</h2>
             <p className="mt-4 text-base text-white/72">
               {player.position || 'Posicion no disponible'}
-              {player.height || player.weight ? ` · ${player.height || '—'} · ${player.weight || '—'}` : ''}
             </p>
             <div className="mt-6">
               {streak?.streak_status === 'hot' ? (
@@ -176,8 +177,8 @@ export default function PlayerDetail() {
           <StatBlock label="PPG" value={formatNumber(player.season_ppg)} />
           <StatBlock label="RPG" value={formatNumber(player.season_rpg)} />
           <StatBlock label="APG" value={formatNumber(player.season_apg)} />
-          <StatBlock label="SPG" value="—" />
-          <StatBlock label="BPG" value="—" />
+          <StatBlock label="SPG" value={formatNumber(player.season_spg)} />
+          <StatBlock label="BPG" value={formatNumber(player.season_bpg)} />
         </div>
       </section>
 
@@ -290,7 +291,7 @@ export default function PlayerDetail() {
                   {scoutingParagraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
                 </div>
                 <div className="mt-6 rounded-md border border-[--color-border] bg-[--color-bg] px-4 py-3 text-xs uppercase tracking-[0.18em] text-[--color-text-muted]">
-                  Generado por gpt-4o-mini. Valida siempre con tu propio criterio.
+                  Generado por {activeReport.generated_by || 'modelo local'}. Valida siempre con tu propio criterio.
                 </div>
               </div>
             ) : (
@@ -303,7 +304,41 @@ export default function PlayerDetail() {
           <div className="grid gap-6 md:grid-cols-2">
             <div className="surface-card p-6">
               <p className="text-xs uppercase tracking-[0.24em] text-[--color-text-muted]">Presencia en tus ligas</p>
-              <EmptyState icon={ShieldAlert} title="No aparece en tus ligas" body="La API actual no expone en que ligas tuyas esta rosterizado este jugador, asi que esta vista evita asumir datos que no existen." />
+              {exposure.length ? (
+                <div className="mt-6 space-y-3">
+                  {exposure.map((entry) => (
+                    <article key={`${entry.league_id}-${entry.fantasy_team_id}-${entry.roster_slot}`} className="rounded-lg border border-[--color-border] bg-[--color-bg-elev-2] p-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone="green">En roster</Badge>
+                        <Badge tone="gray">{entry.roster_slot}</Badge>
+                        <Badge tone="orange">{entry.acquired_via === 'draft' ? 'Draft' : 'Free agent'}</Badge>
+                      </div>
+                      <h3 className="mt-4 font-display text-2xl uppercase tracking-wide text-[--color-text]">{entry.team_name}</h3>
+                      <p className="mt-1 text-sm text-[--color-text-muted]">{entry.league_name}</p>
+                      <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-[--color-text-muted]">
+                        <span>Agregado {formatDateTime(entry.acquired_at)}</span>
+                        <span>{entry.draft_status === 'completed' ? 'Draft cerrado' : entry.draft_status}</span>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <Link to={`/leagues/${entry.league_id}`} className="button-secondary">
+                          Ver liga
+                        </Link>
+                        <Link to={`/teams/${entry.fantasy_team_id}`} className="button-secondary">
+                          Ver roster
+                        </Link>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-6">
+                  <EmptyState
+                    icon={ShieldAlert}
+                    title="No aparece en tus ligas"
+                    body="Este jugador no esta en ninguno de tus equipos fantasy actuales."
+                  />
+                </div>
+              )}
             </div>
             <div className="surface-card p-6">
               <p className="text-xs uppercase tracking-[0.24em] text-[--color-text-muted]">Impacto por ronda</p>

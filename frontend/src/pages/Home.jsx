@@ -7,6 +7,7 @@ import RoundChip from '../components/RoundChip';
 import Badge from '../components/Badge';
 import TeamLogo from '../components/TeamLogo';
 import PlayerAvatar from '../components/PlayerAvatar';
+import RefreshStatusControl from '../components/RefreshStatusControl';
 import Skeleton from '../components/Skeleton';
 import { formatDateTime } from '../lib/utils';
 import { getTeamMeta } from '../lib/teamData';
@@ -111,41 +112,49 @@ export default function Home() {
           <Badge tone="orange">Playoffs NBA 2026</Badge>
         </div>
 
-        <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 pb-16 pt-28">
-          <div className="max-w-5xl">
-            <p className="mb-4 text-xs font-body font-semibold uppercase tracking-[0.34em] text-[--color-accent]">Fantasy solo para playoffs</p>
-            <h1 className="max-w-5xl text-balance font-display text-[clamp(3.1rem,8vw,7.4rem)] uppercase italic leading-[0.88] tracking-tight text-[--color-text] [text-shadow:0_10px_28px_rgba(0,0,0,0.38)]">
-              Draftea estrellas.
-              <br />
-              <span className="text-[--color-accent]">Gana el anillo.</span>
-            </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-white/88 [text-shadow:0_8px_24px_rgba(0,0,0,0.42)]">
-              Ocho jugadores. Cuatro rondas. Una alineacion campeona. Un sistema con multiplicadores que premia las carreras largas y las decisiones de manager de verdad.
-            </p>
-          </div>
+        <div className="relative z-10 mx-auto w-full max-w-7xl px-6 pb-16 pt-28">
+          <div className="grid items-center gap-10 xl:grid-cols-[minmax(0,1fr)_24rem] 2xl:grid-cols-[minmax(0,1fr)_28rem]">
+            <div className="min-w-0">
+              <div className="max-w-5xl">
+                <p className="mb-4 text-xs font-body font-semibold uppercase tracking-[0.34em] text-[--color-accent]">Fantasy solo para playoffs</p>
+                <h1 className="max-w-5xl text-balance font-display text-[clamp(3.1rem,8vw,7.4rem)] uppercase italic leading-[0.88] tracking-tight text-[--color-text] [text-shadow:0_10px_28px_rgba(0,0,0,0.38)]">
+                  Draftea estrellas.
+                  <br />
+                  <span className="text-[--color-accent]">Gana el anillo.</span>
+                </h1>
+                <p className="mt-6 max-w-2xl text-lg leading-8 text-white/88 [text-shadow:0_8px_24px_rgba(0,0,0,0.42)]">
+                  Ocho jugadores. Cuatro rondas. Una alineacion campeona. Un sistema con multiplicadores que premia las carreras largas y las decisiones de manager de verdad.
+                </p>
+              </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Link to="/leagues" className="button-primary">
-              Entrar a mis ligas
-            </Link>
-            <Link to="/players" className="button-secondary">
-              Ver jugadores
-            </Link>
-            {healthError || gamesError || hotColdError ? <Badge tone="red">Backend desconectado</Badge> : null}
-          </div>
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                <Link to="/leagues" className="button-primary">
+                  Entrar a mis ligas
+                </Link>
+                <Link to="/players" className="button-secondary">
+                  Ver jugadores
+                </Link>
+                {healthError || gamesError || hotColdError ? <Badge tone="red">Backend desconectado</Badge> : null}
+              </div>
 
-          <div className="grid max-w-3xl gap-4 sm:grid-cols-3">
-            <div className="glass-panel px-4 py-3">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-white/60">Jugadores</p>
-              <p className="font-stat text-4xl font-black tracking-tight text-white">{health?.counts?.players ?? '791'}</p>
+              <div className="mt-10 grid max-w-3xl gap-4 sm:grid-cols-3">
+                <div className="glass-panel px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-white/60">Jugadores</p>
+                  <p className="font-stat text-4xl font-black tracking-tight text-white">{health?.counts?.players ?? '791'}</p>
+                </div>
+                <div className="glass-panel px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-white/60">Partidos</p>
+                  <p className="font-stat text-4xl font-black tracking-tight text-white">{health?.counts?.games ?? '3,778'}</p>
+                </div>
+                <div className="glass-panel px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-white/60">Box scores</p>
+                  <p className="font-stat text-4xl font-black tracking-tight text-white">{health?.counts?.stats ?? '88,603'}</p>
+                </div>
+              </div>
             </div>
-            <div className="glass-panel px-4 py-3">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-white/60">Partidos</p>
-              <p className="font-stat text-4xl font-black tracking-tight text-white">{health?.counts?.games ?? '3,778'}</p>
-            </div>
-            <div className="glass-panel px-4 py-3">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-white/60">Box scores</p>
-              <p className="font-stat text-4xl font-black tracking-tight text-white">{health?.counts?.stats ?? '88,603'}</p>
+
+            <div className="w-full xl:self-center xl:justify-self-end xl:-translate-y-8 xl:translate-x-6 2xl:-translate-y-6 2xl:translate-x-10">
+              <RefreshStatusControl user={user} />
             </div>
           </div>
         </div>

@@ -6,6 +6,7 @@ import Modal from '../components/Modal';
 import EmptyState from '../components/EmptyState';
 import Skeleton from '../components/Skeleton';
 import PlayerAvatar from '../components/PlayerAvatar';
+import { useToast } from '../components/Toast';
 import { formatDateLabel, formatInteger, formatNumber } from '../lib/utils';
 
 const REPORTS = [
@@ -14,7 +15,7 @@ const REPORTS = [
   { key: 'streaks', title: 'Seguimiento de rachas', icon: Flame, body: 'Cortes de jugadores calientes y frios en la muestra mas reciente.' },
   { key: 'roster', title: 'Analizador de roster', icon: ListOrdered, body: 'Detalle del roster del primer equipo disponible en tu liga seleccionada.' },
   { key: 'daily', title: 'Puntuacion diaria fantasy', icon: Table2, body: 'Resultados fantasy ajustados por el sistema de multiplicadores.' },
-  { key: 'accuracy', title: 'Precision del modelo (MAE)', icon: ShieldCheck, body: 'No esta expuesto por el cliente actual del frontend.' },
+  { key: 'accuracy', title: 'Precision del modelo (MAE)', icon: ShieldCheck, body: 'Mide que tan cerca quedaron las predicciones guardadas frente al resultado real.' },
 ];
 
 function downloadCsv(filename, rows) {
@@ -29,11 +30,13 @@ function downloadCsv(filename, rows) {
 }
 
 export default function Reports() {
+  const { pushToast } = useToast();
   const [leagues, setLeagues] = useState([]);
   const [selectedLeagueId, setSelectedLeagueId] = useState('');
   const [selectedReport, setSelectedReport] = useState(null);
   const [reportData, setReportData] = useState({});
   const [loading, setLoading] = useState(true);
+  const [backfilling, setBackfilling] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -44,11 +47,12 @@ export default function Reports() {
         const leagueId = leagueList[0]?.league_id ? String(leagueList[0].league_id) : '';
         setSelectedLeagueId(leagueId);
 
-        const [season, streaks, daily, games] = await Promise.all([
+        const [season, streaks, daily, games, accuracy] = await Promise.all([
           api.leaderboard('avg_fantasy_pts', 50),
           api.hotCold(50),
           api.dailyScoring(null, 50),
           api.games(null, 20),
+          api.predictionAccuracy(50),
         ]);
 
         let standings = [];
@@ -59,7 +63,7 @@ export default function Reports() {
           roster = firstTeamId ? await api.roster(firstTeamId) : [];
         }
 
-        setReportData({ standings, season, streaks, roster, daily, games });
+        setReportData({ standings, season, streaks, roster, daily, games, accuracy });
       } finally {
         setLoading(false);
       }
@@ -88,11 +92,33 @@ export default function Reports() {
   }, [selectedLeagueId]);
 
   function openReport(key) {
-    if (key === 'accuracy') {
-      setSelectedReport('accuracy');
-      return;
-    }
     setSelectedReport(key);
+  }
+
+  async function reloadAccuracy() {
+    const accuracy = await api.predictionAccuracy(50);
+    setReportData((current) => ({ ...current, accuracy }));
+  }
+
+  async function handleBackfillPredictions() {
+    setBackfilling(true);
+    try {
+      const result = await api.backfillPredictions();
+      await reloadAccuracy();
+      pushToast({
+        title: 'Predicciones generadas',
+        message: `${result.generated_rows} filas procesadas para ${result.model_version}.`,
+        tone: 'success',
+      });
+    } catch (error) {
+      pushToast({
+        title: 'No se pudo generar el baseline',
+        message: error.message,
+        tone: 'error',
+      });
+    } finally {
+      setBackfilling(false);
+    }
   }
 
   const seasonColumns = [
@@ -135,12 +161,23 @@ export default function Reports() {
     { key: 'adjusted_fantasy_pts', label: 'FPTS aj.', align: 'right', render: (row) => <span className="font-stat text-xl font-black text-[--color-accent]">{formatNumber(row.adjusted_fantasy_pts)}</span> },
   ];
 
+  const accuracyColumns = [
+    { key: 'player_name', label: 'Jugador', render: (row) => <div className="flex items-center gap-3"><PlayerAvatar playerId={row.player_id} playerName={row.player_name} size="sm" /><span className="font-body font-semibold text-[--color-text]">{row.player_name}</span></div> },
+    { key: 'model_version', label: 'Modelo' },
+    { key: 'predictions_made', label: 'Pred.', align: 'right', render: (row) => <span className="font-stat text-xl font-black text-[--color-text]">{formatInteger(row.predictions_made)}</span> },
+    { key: 'mae', label: 'MAE', align: 'right', render: (row) => <span className="font-stat text-xl font-black text-[--color-accent]">{formatNumber(row.mae)}</span> },
+    { key: 'avg_predicted', label: 'Pred. avg', align: 'right', render: (row) => <span className="font-stat text-xl font-black text-[--color-text]">{formatNumber(row.avg_predicted)}</span> },
+    { key: 'avg_actual', label: 'Real avg', align: 'right', render: (row) => <span className="font-stat text-xl font-black text-[--color-text]">{formatNumber(row.avg_actual)}</span> },
+    { key: 'avg_confidence', label: 'Conf.', align: 'right', render: (row) => <span className="font-stat text-xl font-black text-[--color-text]">{formatNumber(row.avg_confidence)}</span> },
+  ];
+
   const reportTable = {
     standings: { title: 'Posiciones de liga', columns: standingsColumns, rows: reportData.standings || [] },
     season: { title: 'Promedios de temporada', columns: seasonColumns, rows: reportData.season || [] },
     streaks: { title: 'Seguimiento de rachas', columns: streakColumns, rows: reportData.streaks || [] },
     roster: { title: 'Analizador de roster', columns: rosterColumns, rows: reportData.roster || [] },
     daily: { title: 'Puntuacion diaria fantasy', columns: dailyColumns, rows: reportData.daily || [] },
+    accuracy: { title: 'Precision del modelo', columns: accuracyColumns, rows: reportData.accuracy || [] },
   }[selectedReport];
 
   return (
@@ -172,7 +209,7 @@ export default function Reports() {
                 report.key === 'streaks' ? `${reportData.streaks?.filter((item) => item.streak_status === 'hot').length || 0}` :
                 report.key === 'roster' ? `${reportData.roster?.length || 0}` :
                 report.key === 'daily' ? formatNumber(reportData.daily?.[0]?.adjusted_fantasy_pts || 0) :
-                'API';
+                formatNumber(reportData.accuracy?.[0]?.mae || 0);
 
               return (
                 <article key={report.key} className="surface-card flex flex-col gap-5 p-6">
@@ -196,29 +233,46 @@ export default function Reports() {
       )}
 
       <Modal open={Boolean(selectedReport)} onClose={() => setSelectedReport(null)} title={reportTable?.title || 'Precision del modelo'} size="max-w-6xl">
-        {selectedReport === 'accuracy' ? (
-          <EmptyState icon={ShieldCheck} title="La precision del modelo no esta disponible" body="El backend expone un endpoint de accuracy, pero el cliente bloqueado del frontend no incluye ese metodo. Esta vista deja la limitacion explicita sin invocar rutas no soportadas." />
-        ) : reportTable ? (
+        {reportTable ? (
           <div className="space-y-4">
-            <div className="flex justify-end">
-              <button
-                type="button"
-                className="button-secondary"
-                onClick={() =>
-                  downloadCsv(
-                    `${selectedReport}.csv`,
-                    [
-                      reportTable.columns.map((column) => column.label),
-                      ...reportTable.rows.map((row) => reportTable.columns.map((column) => row[column.key] ?? '')),
-                    ],
-                  )
-                }
-              >
-                <Download className="h-4 w-4" />
-                Exportar CSV
-              </button>
-            </div>
-            <Table columns={reportTable.columns} rows={reportTable.rows} sortable />
+            {reportTable.rows.length > 0 ? (
+              <>
+                <div className="flex flex-wrap justify-end gap-3">
+                  {selectedReport === 'accuracy' ? (
+                    <button type="button" className="button-secondary" onClick={handleBackfillPredictions} disabled={backfilling}>
+                      {backfilling ? 'Actualizando modelo...' : 'Recalcular baseline'}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() =>
+                      downloadCsv(
+                        `${selectedReport}.csv`,
+                        [
+                          reportTable.columns.map((column) => column.label),
+                          ...reportTable.rows.map((row) => reportTable.columns.map((column) => row[column.key] ?? '')),
+                        ],
+                      )
+                    }
+                  >
+                    <Download className="h-4 w-4" />
+                    Exportar CSV
+                  </button>
+                </div>
+                <Table columns={reportTable.columns} rows={reportTable.rows} sortable />
+              </>
+            ) : (
+              <EmptyState
+                icon={ShieldCheck}
+                title="No hay filas disponibles"
+                body="Todavia no existen predicciones guardadas que puedan compararse contra resultados reales en esta base."
+                action={selectedReport === 'accuracy' && !backfilling ? {
+                  label: backfilling ? 'Generando...' : 'Generar baseline',
+                  onClick: handleBackfillPredictions,
+                } : undefined}
+              />
+            )}
           </div>
         ) : null}
       </Modal>

@@ -127,7 +127,7 @@ export default function Leagues() {
           </div>
           <div className="space-y-2">
             <label className="field-label" htmlFor="league-size">Maximo de equipos: {createForm.max_teams}</label>
-            <input id="league-size" type="range" min="4" max="12" className="w-full accent-[--color-accent]" value={createForm.max_teams} onChange={(event) => setCreateForm((current) => ({ ...current, max_teams: Number(event.target.value) }))} />
+            <input id="league-size" type="range" min="4" max="10" className="w-full accent-[--color-accent]" value={createForm.max_teams} onChange={(event) => setCreateForm((current) => ({ ...current, max_teams: Number(event.target.value) }))} />
           </div>
           <div className="space-y-2">
             <span className="field-label">Tipo de puntuacion</span>

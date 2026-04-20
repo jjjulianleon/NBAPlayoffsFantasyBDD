@@ -67,6 +67,38 @@ export function formatDateTime(value) {
   }).format(date);
 }
 
+export function formatRelativeTime(value) {
+  if (!value) {
+    return null;
+  }
+
+  const timestamp = new Date(value).getTime();
+  if (Number.isNaN(timestamp)) {
+    return null;
+  }
+
+  const elapsed = Date.now() - timestamp;
+  if (elapsed < 0) {
+    return 'ahora';
+  }
+
+  const minutes = Math.floor(elapsed / 60000);
+  if (minutes < 1) {
+    return 'ahora';
+  }
+  if (minutes < 60) {
+    return `hace ${minutes}m`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `hace ${hours}h`;
+  }
+
+  const days = Math.floor(hours / 24);
+  return `hace ${days}d`;
+}
+
 export function formatLongDate(value) {
   if (!value) {
     return 'Sin fecha';

@@ -8,6 +8,7 @@ from .players.router import router as players_router
 from .fantasy.router import router as fantasy_router
 from .predictions.router import router as predictions_router
 from .predictions.scouting import router as scouting_router
+from .admin.router import router as admin_router
 
 
 @asynccontextmanager
@@ -37,6 +38,7 @@ app.include_router(players_router)
 app.include_router(fantasy_router)
 app.include_router(predictions_router)
 app.include_router(scouting_router)
+app.include_router(admin_router)
 
 
 @app.get("/api/health")

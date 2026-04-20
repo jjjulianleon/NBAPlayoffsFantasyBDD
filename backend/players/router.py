@@ -9,6 +9,7 @@ async def list_players(
     team: str | None = Query(None, description="Filtrar por abbreviation de equipo"),
     position: str | None = Query(None, description="Filtrar por posicion (G, F, C, G-F, F-C)"),
     search: str | None = Query(None, description="Buscar por nombre"),
+    include_eliminated: bool = Query(False, description="Incluir jugadores de equipos eliminados"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
@@ -17,6 +18,8 @@ async def list_players(
     params = []
     idx = 1
 
+    if not include_eliminated:
+        conditions.append("NOT t.is_eliminated")
     if team:
         conditions.append(f"t.abbreviation = ${idx}")
         params.append(team.upper())
@@ -74,15 +77,17 @@ async def hot_cold_players(limit: int = Query(20, ge=1, le=100)):
 @router.get("/leaderboard")
 async def player_leaderboard(
     stat: str = Query("avg_fantasy_pts", description="Campo para ordenar"),
+    include_eliminated: bool = Query(False, description="Incluir equipos eliminados"),
     limit: int = Query(25, ge=1, le=100),
 ):
     allowed = {"avg_pts", "avg_reb", "avg_ast", "avg_stl", "avg_blk", "avg_fantasy_pts", "total_fantasy_pts", "games_played"}
     if stat not in allowed:
         stat = "avg_fantasy_pts"
     pool = await get_pool()
+    elim_clause = "" if include_eliminated else "AND NOT is_eliminated"
     rows = await pool.fetch(f"""
         SELECT * FROM v_player_performance
-        WHERE games_played > 0
+        WHERE games_played > 0 {elim_clause}
         ORDER BY {stat} DESC
         LIMIT $1
     """, limit)
@@ -93,7 +98,9 @@ async def player_leaderboard(
 async def get_player(player_id: int):
     pool = await get_pool()
     player = await pool.fetchrow("""
-        SELECT p.*, t.abbreviation AS team, t.full_name AS team_name, t.is_eliminated
+        SELECT p.*, t.abbreviation AS team, t.full_name AS team_name, t.is_eliminated,
+               (SELECT ROUND(AVG(steals)::numeric, 1) FROM player_game_stats WHERE player_id = p.player_id) AS season_spg,
+               (SELECT ROUND(AVG(blocks)::numeric, 1) FROM player_game_stats WHERE player_id = p.player_id) AS season_bpg
         FROM players p
         JOIN nba_teams t ON p.team_id = t.team_id
         WHERE p.player_id = $1

@@ -84,6 +84,7 @@ FROM players p
 JOIN nba_teams t ON p.team_id = t.team_id
 JOIN last5 l    ON p.player_id = l.player_id AND l.rn <= 5
 WHERE p.season_ppg >= 5.0  -- excluye jugadores irrelevantes / season_ppg=0
+  AND NOT t.is_eliminated  -- solo jugadores en equipos de playoff activos
 GROUP BY p.player_id, p.first_name, p.last_name, t.abbreviation, p.season_ppg
 HAVING COUNT(l.points) >= 3;  -- minimo 3 partidos en los ultimos 5
 
@@ -92,9 +93,11 @@ HAVING COUNT(l.points) >= 3;  -- minimo 3 partidos en los ultimos 5
 -- =============================================================
 CREATE VIEW v_roster_detail AS
 SELECT
+    ft.league_id,
     ft.fantasy_team_id,
     ft.team_name,
     u.username,
+    rp.player_id,
     rp.roster_slot,
     rp.is_active,
     rp.acquired_via,
@@ -120,7 +123,9 @@ SELECT
     g.game_date,
     g.playoff_round,
     ht.abbreviation || ' vs ' || at.abbreviation AS matchup,
+    p.player_id,
     p.first_name || ' ' || p.last_name AS player_name,
+    team.abbreviation AS team,
     pgs.points,
     pgs.rebounds,
     pgs.assists,
@@ -138,6 +143,7 @@ SELECT
 FROM player_game_stats pgs
 JOIN players   p  ON pgs.player_id   = p.player_id
 JOIN games     g  ON pgs.game_id     = g.game_id
+JOIN nba_teams team ON p.team_id      = team.team_id
 JOIN nba_teams ht ON g.home_team_id  = ht.team_id
 JOIN nba_teams at ON g.away_team_id  = at.team_id;
 

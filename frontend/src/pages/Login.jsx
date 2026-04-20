@@ -75,8 +75,8 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-4">
             <div className="space-y-2">
-              <label className="field-label" htmlFor="username">Correo o usuario</label>
-              <input id="username" className="field w-full" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="manager@playoffhoops.com" />
+              <label className="field-label" htmlFor="username">Usuario</label>
+              <input id="username" className="field w-full" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="playoffgm" />
             </div>
             <div className="space-y-2">
               <label className="field-label" htmlFor="password">Contrasena</label>

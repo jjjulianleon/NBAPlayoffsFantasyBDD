@@ -26,17 +26,28 @@ export default function LeagueDetail() {
   const { pushToast } = useToast();
   const [league, setLeague] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
+  const [draftState, setDraftState] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [teamName, setTeamName] = useState('');
+  const [settingsForm, setSettingsForm] = useState({ league_name: '', max_teams: 8 });
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [reseedLoading, setReseedLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   async function loadLeague() {
-    const [leagueResponse, standings] = await Promise.all([
+    const [leagueResponse, standings, draftResponse] = await Promise.all([
       api.league(id),
       api.leagueLeaderboard(id).catch(() => []),
+      api.draftState(id).catch(() => null),
     ]);
     setLeague(leagueResponse);
     setLeaderboard(standings);
+    setDraftState(draftResponse);
+    setSettingsForm({
+      league_name: leagueResponse.league_name || '',
+      max_teams: Number(leagueResponse.max_teams || 8),
+    });
   }
 
   useEffect(() => {
@@ -64,6 +75,15 @@ export default function LeagueDetail() {
     { key: 'username', label: 'Usuario' },
     { key: 'active_roster_size', label: 'Activos', align: 'right' },
     { key: 'total_points', label: 'Puntos', align: 'right', render: (row) => <span className="font-stat text-3xl font-black text-[--color-text]">{formatInteger(row.total_points)}</span> },
+  ];
+
+  const draftHistoryColumns = [
+    { key: 'pick_number', label: 'Pick', render: (row) => <span className="font-stat text-2xl font-black text-[--color-text]">{row.pick_number}</span> },
+    { key: 'round_number', label: 'Ronda', align: 'right' },
+    { key: 'team_name', label: 'Equipo', render: (row) => <span className="font-body font-semibold text-[--color-text]">{row.team_name}</span> },
+    { key: 'username', label: 'Manager' },
+    { key: 'player_name', label: 'Jugador', render: (row) => <span className="font-body font-semibold text-[--color-text]">{row.player_name}</span> },
+    { key: 'nba_team', label: 'NBA' },
   ];
 
   async function handleJoin() {
@@ -96,6 +116,57 @@ export default function LeagueDetail() {
       navigate(`/teams/${team.fantasy_team_id}`);
     } catch (err) {
       pushToast({ title: 'No se pudo crear el equipo', message: err.message, tone: 'error' });
+    }
+  }
+
+  async function handleSaveSettings(event) {
+    event.preventDefault();
+    setSettingsSaving(true);
+    try {
+      await api.updateLeague(id, {
+        league_name: settingsForm.league_name,
+        max_teams: Number(settingsForm.max_teams),
+      });
+      pushToast({ title: 'Liga actualizada', message: 'Los cambios de configuracion ya quedaron guardados.', tone: 'success' });
+      await loadLeague();
+    } catch (err) {
+      pushToast({ title: 'No se pudo guardar', message: err.message, tone: 'error' });
+    } finally {
+      setSettingsSaving(false);
+    }
+  }
+
+  async function handleReseedDraft() {
+    if (!window.confirm('Esto va a reordenar aleatoriamente la sala de draft antes de iniciar. Continuar?')) {
+      return;
+    }
+
+    setReseedLoading(true);
+    try {
+      await api.reseedDraft(id);
+      pushToast({ title: 'Orden rehecho', message: 'La sala de draft ya tiene un nuevo orden aleatorio.', tone: 'success' });
+      await loadLeague();
+    } catch (err) {
+      pushToast({ title: 'No se pudo rehacer el orden', message: err.message, tone: 'error' });
+    } finally {
+      setReseedLoading(false);
+    }
+  }
+
+  async function handleDeleteLeague() {
+    if (!window.confirm('Esta acción eliminará la liga, sus equipos, picks y rosters. No se puede deshacer. Continuar?')) {
+      return;
+    }
+
+    setDeleteLoading(true);
+    try {
+      await api.deleteLeague(id);
+      pushToast({ title: 'Liga disuelta', message: 'La liga fue eliminada correctamente.', tone: 'success' });
+      navigate('/leagues');
+    } catch (err) {
+      pushToast({ title: 'No se pudo disolver la liga', message: err.message, tone: 'error' });
+    } finally {
+      setDeleteLoading(false);
     }
   }
 
@@ -223,7 +294,11 @@ export default function LeagueDetail() {
         ) : null}
 
         {activeTab === 'draft-history' ? (
-          <EmptyState icon={Rocket} title="No hay historial expuesto" body="El backend actual no devuelve el historial pick por pick de esta liga, asi que esta pestana no inventa datos." />
+          draftState?.history?.length ? (
+            <Table columns={draftHistoryColumns} rows={draftState.history} />
+          ) : (
+            <EmptyState icon={Rocket} title="Todavia no hay picks" body="El historial del draft aparecera aqui en cuanto la liga empiece a seleccionar jugadores." />
+          )
         ) : null}
 
         {activeTab === 'settings' ? (
@@ -231,20 +306,75 @@ export default function LeagueDetail() {
             <div className="grid gap-5 md:grid-cols-2">
               <div className="surface-card p-6">
                 <p className="text-xs uppercase tracking-[0.24em] text-[--color-text-muted]">Controles de liga</p>
-                <div className="mt-5 space-y-3">
-                  <button type="button" className="button-secondary w-full justify-start" disabled>
+                <form className="mt-5 space-y-5" onSubmit={handleSaveSettings}>
+                  <div className="space-y-2">
+                    <label className="field-label" htmlFor="league-settings-name">Nombre de la liga</label>
+                    <input
+                      id="league-settings-name"
+                      className="field w-full"
+                      value={settingsForm.league_name}
+                      onChange={(event) => setSettingsForm((current) => ({ ...current, league_name: event.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="field-label" htmlFor="league-settings-size">Maximo de equipos: {settingsForm.max_teams}</label>
+                    <input
+                      id="league-settings-size"
+                      type="range"
+                      min="4"
+                      max="10"
+                      className="w-full accent-[--color-accent]"
+                      value={settingsForm.max_teams}
+                      onChange={(event) => setSettingsForm((current) => ({ ...current, max_teams: Number(event.target.value) }))}
+                    />
+                    <p className="text-sm text-[--color-text-muted]">No puede quedar por debajo de los miembros actuales de la liga.</p>
+                  </div>
+                  <button type="submit" className="button-primary w-full" disabled={settingsSaving}>
                     <Settings2 className="h-4 w-4" />
-                    Renombrar liga
+                    {settingsSaving ? 'Guardando...' : 'Guardar configuracion'}
                   </button>
-                  <button type="button" className="button-secondary w-full justify-start" disabled>
-                    <Users className="h-4 w-4" />
-                    Cambiar maximo de equipos
-                  </button>
+                </form>
+                <div className="mt-6 border-t border-[--color-border] pt-5">
+                  <p className="text-xs uppercase tracking-[0.24em] text-[--color-text-muted]">Orden actual del draft</p>
+                  {draftState?.teams?.length ? (
+                    <div className="mt-4 space-y-2">
+                      {draftState.teams.map((team, index) => (
+                        <div key={team.fantasy_team_id} className="flex items-center justify-between rounded-lg border border-[--color-border] bg-[--color-bg-elev-2] px-4 py-3">
+                          <span className="font-body font-semibold text-[--color-text]">{index + 1}. {team.team_name}</span>
+                          <span className="text-sm text-[--color-text-muted]">@{team.username}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm text-[--color-text-muted]">Todavia no hay equipos suficientes para calcular un orden visible.</p>
+                  )}
                 </div>
               </div>
               <div className="rounded-lg border border-[--color-danger]/40 bg-[--color-danger]/10 p-6">
                 <p className="text-xs uppercase tracking-[0.24em] text-[--color-danger]">Acciones de alto riesgo</p>
-                <p className="mt-3 text-sm leading-6 text-[--color-text-muted]">El backend no expone endpoints para disolver la liga o rehacer el orden. Estos controles quedan deshabilitados a proposito.</p>
+                <div className="mt-4 space-y-3">
+                  <button
+                    type="button"
+                    className="button-secondary w-full justify-start"
+                    onClick={handleReseedDraft}
+                    disabled={reseedLoading || league.draft_status !== 'pending'}
+                  >
+                    <Users className="h-4 w-4" />
+                    {reseedLoading ? 'Rehaciendo orden...' : 'Rehacer orden de draft'}
+                  </button>
+                  <button
+                    type="button"
+                    className="button-secondary w-full justify-start"
+                    onClick={handleDeleteLeague}
+                    disabled={deleteLoading}
+                  >
+                    <Rocket className="h-4 w-4" />
+                    {deleteLoading ? 'Disolviendo liga...' : 'Disolver liga'}
+                  </button>
+                </div>
+                <p className="mt-4 text-sm leading-6 text-[--color-text-muted]">
+                  Rehacer orden solo está permitido antes de iniciar el draft. Disolver liga elimina equipos, picks y rosters asociados.
+                </p>
               </div>
             </div>
           ) : (

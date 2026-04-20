@@ -27,7 +27,7 @@ function NavLink({ to, label, active, onClick }) {
       to={to}
       onClick={onClick}
       className={cn(
-        'inline-flex h-10 items-center rounded-md px-4 text-sm font-body font-semibold uppercase tracking-[0.14em] transition-colors duration-150',
+        'inline-flex h-10 items-center rounded-md px-3 text-[11px] font-body font-semibold whitespace-nowrap uppercase tracking-[0.12em] transition-colors duration-150 2xl:px-4 2xl:text-sm 2xl:tracking-[0.14em]',
         active
           ? 'border-b-2 border-[--color-accent] pb-[6px] text-[--color-text]'
           : 'text-[--color-text-muted] hover:bg-[--color-bg-elev-2] hover:text-[--color-text]',
@@ -53,36 +53,36 @@ export default function Navbar() {
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-[--color-border] bg-[--color-bg-elev]/95 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between gap-3 px-4 md:px-6">
+      <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between gap-2 px-4 md:px-6">
         <div className="flex min-w-0 items-center gap-3">
-          <Link to="/" className="flex min-w-0 items-center gap-3">
+          <Link to="/" className="flex min-w-0 shrink-0 items-center gap-3">
             <LogoMark />
             <div className="min-w-0">
-              <div className="whitespace-nowrap font-display text-sm uppercase tracking-[0.14em] text-[--color-text] sm:text-base md:text-lg md:tracking-[0.2em]">Playoff Hoops</div>
-              <div className="hidden whitespace-nowrap text-[10px] font-body uppercase tracking-[0.22em] text-[--color-text-dim] md:block">
+              <div className="whitespace-nowrap font-display text-sm uppercase tracking-[0.14em] text-[--color-text] sm:text-base xl:text-[15px] xl:tracking-[0.18em] 2xl:text-lg 2xl:tracking-[0.2em]">Playoff Hoops</div>
+              <div className="hidden whitespace-nowrap text-[10px] font-body uppercase tracking-[0.22em] text-[--color-text-dim] 2xl:block">
                 {health?.counts?.players ? `${health.counts.players} jugadores` : 'Fantasy de playoffs'}
               </div>
             </div>
           </Link>
-          <div className={cn('hidden px-3 py-1 text-xs font-body font-semibold uppercase tracking-[0.16em] xl:inline-flex', 'badge', playoffPhase.toneClassName)}>
+          <div className={cn('hidden px-3 py-1 text-xs font-body font-semibold uppercase tracking-[0.16em] 2xl:inline-flex', 'badge', playoffPhase.toneClassName)}>
             {playoffPhase.label} · {playoffPhase.sublabel}
           </div>
         </div>
 
-        <nav className="hidden items-center gap-1 lg:flex">
+        <nav className="hidden min-w-0 items-center gap-1 2xl:flex">
           {LINKS.map((item) => (
             <NavLink key={item.to} to={item.to} label={item.label} active={location.pathname.startsWith(item.to)} />
           ))}
         </nav>
 
         <div className="flex shrink-0 items-center gap-2">
-          <button type="button" className="icon-button lg:hidden" onClick={() => setDrawerOpen((value) => !value)} aria-label="Abrir navegación">
+          <button type="button" className="icon-button 2xl:hidden" onClick={() => setDrawerOpen((value) => !value)} aria-label="Abrir navegación">
             {drawerOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
 
           {user ? (
             <>
-              <button type="button" className="icon-button hidden md:inline-flex" aria-label="Notificaciones">
+              <button type="button" className="icon-button hidden 2xl:inline-flex" aria-label="Notificaciones">
                 <Bell className="h-4 w-4" />
               </button>
               <div className="relative">
@@ -94,7 +94,7 @@ export default function Navbar() {
                   <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[--color-accent] font-stat text-xl font-black tracking-tight text-black">
                     {getInitials(user.username)}
                   </span>
-                  <span className="hidden pr-3 font-body text-sm font-semibold text-[--color-text] sm:block">{user.username}</span>
+                  <span className="hidden pr-3 font-body text-sm font-semibold text-[--color-text] 2xl:block">{user.username}</span>
                 </button>
                 {menuOpen ? (
                   <div className="absolute right-0 mt-2 w-56 rounded-lg border border-[--color-border] bg-[--color-bg-elev] p-2 shadow-2xl">
@@ -136,7 +136,7 @@ export default function Navbar() {
       </div>
 
       {drawerOpen ? (
-        <div className="border-t border-[--color-border] bg-[--color-bg-elev] px-4 py-3 lg:hidden">
+        <div className="border-t border-[--color-border] bg-[--color-bg-elev] px-4 py-3 2xl:hidden">
           <div className="flex flex-col gap-1">
             {LINKS.map((item) => (
               <NavLink
