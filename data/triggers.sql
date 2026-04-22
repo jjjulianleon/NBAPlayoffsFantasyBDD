@@ -118,19 +118,37 @@ AFTER INSERT OR UPDATE OR DELETE ON roster_players
 FOR EACH ROW EXECUTE FUNCTION trg_fn_sync_team_points_from_roster();
 
 -- =============================================================
--- TRIGGER 4: cuando un equipo NBA es eliminado del playoff,
--- no se altera la pertenencia al roster fantasy. La disponibilidad
--- competitiva se deriva desde nba_teams.is_eliminated en consultas.
+-- TRIGGER 4: auditar cambios de eliminación NBA sin alterar
+-- pertenencia al roster fantasy. La disponibilidad competitiva
+-- se deriva desde nba_teams.is_eliminated en consultas.
 -- =============================================================
 CREATE OR REPLACE FUNCTION trg_fn_eliminate_team()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
+    IF OLD.is_eliminated IS DISTINCT FROM NEW.is_eliminated
+       OR OLD.eliminated_round IS DISTINCT FROM NEW.eliminated_round THEN
+        INSERT INTO team_elimination_log (
+            team_id,
+            previous_is_eliminated,
+            new_is_eliminated,
+            previous_round,
+            new_round
+        )
+        VALUES (
+            NEW.team_id,
+            OLD.is_eliminated,
+            NEW.is_eliminated,
+            OLD.eliminated_round,
+            NEW.eliminated_round
+        );
+    END IF;
+
     RETURN NEW;
 END $$;
 
 DROP TRIGGER IF EXISTS trg_eliminate_team ON nba_teams;
 CREATE TRIGGER trg_eliminate_team
-AFTER UPDATE OF is_eliminated ON nba_teams
+AFTER UPDATE OF is_eliminated, eliminated_round ON nba_teams
 FOR EACH ROW EXECUTE FUNCTION trg_fn_eliminate_team();
 
 -- =============================================================
