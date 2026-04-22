@@ -76,14 +76,15 @@ END $$;
 -- Atómico: la liga y la membresía deben crearse juntas o nada.
 -- =============================================================
 CREATE OR REPLACE PROCEDURE sp_create_league(
-    p_league_name VARCHAR(100),
-    p_user_id     INT,
-    p_max_teams   SMALLINT,
+    p_league_name  VARCHAR(100),
+    p_user_id      INT,
+    p_max_teams    SMALLINT,
+    p_scoring_type scoring_type_enum,
     INOUT p_league_id INT
 ) LANGUAGE plpgsql AS $$
 BEGIN
-    INSERT INTO leagues (league_name, created_by, max_teams)
-    VALUES (p_league_name, p_user_id, p_max_teams)
+    INSERT INTO leagues (league_name, created_by, max_teams, scoring_type)
+    VALUES (p_league_name, p_user_id, p_max_teams, p_scoring_type)
     RETURNING league_id INTO p_league_id;
 
     INSERT INTO league_members (league_id, user_id, role)
@@ -134,6 +135,9 @@ BEGIN
 
     INSERT INTO roster_players (fantasy_team_id, player_id, roster_slot, acquired_via)
     VALUES (p_fantasy_team_id, p_player_id, p_slot, 'draft');
+
+    INSERT INTO transactions (fantasy_team_id, player_id, transaction_type)
+    VALUES (p_fantasy_team_id, p_player_id, 'add');
 
     COMMIT;
 END $$;

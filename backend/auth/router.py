@@ -37,13 +37,19 @@ async def register(body: RegisterRequest):
         raise HTTPException(status_code=409, detail="Username o email ya registrado")
 
     hashed = hash_password(body.password)
-    row = await pool.fetchrow(
-        """INSERT INTO users (username, email, password_hash, display_name)
-           VALUES ($1, $2, $3, $4) RETURNING user_id""",
-        body.username, body.email, hashed, body.display_name,
-    )
-    token = create_access_token(row["user_id"], body.username)
-    return TokenResponse(access_token=token, user_id=row["user_id"], username=body.username)
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "CALL sp_register_user($1, $2, $3, $4, $5)",
+            body.username,
+            body.email,
+            hashed,
+            body.display_name,
+            None,
+        )
+    if not row or row["p_user_id"] is None:
+        raise HTTPException(status_code=500, detail="No se pudo crear el usuario")
+    token = create_access_token(row["p_user_id"], body.username)
+    return TokenResponse(access_token=token, user_id=row["p_user_id"], username=body.username)
 
 
 @router.post("/login", response_model=TokenResponse)

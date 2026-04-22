@@ -158,18 +158,17 @@ async def _build_draft_state(conn, league_id: int) -> dict:
 async def create_league(body: CreateLeague, user=Depends(get_current_user)):
     pool = await get_pool()
     async with pool.acquire() as conn:
-        async with conn.transaction():
-            row = await conn.fetchrow(
-                """INSERT INTO leagues (league_name, created_by, max_teams, scoring_type)
-                   VALUES ($1, $2, $3, $4::scoring_type_enum) RETURNING league_id""",
-                body.league_name, user["user_id"], body.max_teams, body.scoring_type,
-            )
-            league_id = row["league_id"]
-            await conn.execute(
-                """INSERT INTO league_members (league_id, user_id, role)
-                   VALUES ($1, $2, 'commissioner')""",
-                league_id, user["user_id"],
-            )
+        row = await conn.fetchrow(
+            "CALL sp_create_league($1, $2, $3, $4::scoring_type_enum, $5)",
+            body.league_name,
+            user["user_id"],
+            body.max_teams,
+            body.scoring_type,
+            None,
+        )
+    league_id = row["p_league_id"] if row else None
+    if league_id is None:
+        raise HTTPException(status_code=500, detail="No se pudo crear la liga")
     return {"league_id": league_id, "league_name": body.league_name}
 
 
@@ -540,83 +539,70 @@ async def start_draft(league_id: int, user=Depends(get_current_user)):
 async def make_pick(league_id: int, body: DraftPick, user=Depends(get_current_user)):
     pool = await get_pool()
     async with pool.acquire() as conn:
-        async with conn.transaction():
-            league = await conn.fetchrow(
-                "SELECT draft_status FROM leagues WHERE league_id = $1 FOR UPDATE",
+        league = await conn.fetchrow(
+            "SELECT draft_status FROM leagues WHERE league_id = $1",
+            league_id,
+        )
+        if not league or league["draft_status"] != "in_progress":
+            raise HTTPException(status_code=400, detail="El draft no esta activo")
+
+        team = await conn.fetchrow(
+            "SELECT fantasy_team_id FROM fantasy_teams WHERE league_id = $1 AND user_id = $2",
+            league_id, user["user_id"],
+        )
+        if not team:
+            raise HTTPException(status_code=403, detail="No tienes equipo en esta liga")
+
+        player_team = await conn.fetchrow(
+            """SELECT t.is_eliminated, t.abbreviation
+               FROM players p JOIN nba_teams t ON p.team_id = t.team_id
+               WHERE p.player_id = $1""",
+            body.player_id,
+        )
+        if not player_team:
+            raise HTTPException(status_code=404, detail="Jugador no existe")
+        if player_team["is_eliminated"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{player_team['abbreviation']} no esta en playoffs — jugador no draftable",
+            )
+
+        draft_state = await _build_draft_state(conn, league_id)
+        if draft_state["next_pick_number"] is None or not draft_state["on_the_clock"]:
+            raise HTTPException(status_code=400, detail="El draft ya completo todos sus picks")
+        if draft_state["on_the_clock"]["fantasy_team_id"] != team["fantasy_team_id"]:
+            raise HTTPException(
+                status_code=403,
+                detail=f"No es tu turno. En el reloj esta {draft_state['on_the_clock']['team_name']}",
+            )
+
+        roster_size = await conn.fetchval(
+            "SELECT COUNT(*) FROM roster_players WHERE fantasy_team_id = $1 AND released_at IS NULL",
+            team["fantasy_team_id"],
+        )
+        if roster_size >= len(DRAFT_SLOTS):
+            raise HTTPException(status_code=400, detail="Tu roster esta lleno")
+        slot = DRAFT_SLOTS[roster_size]
+
+        try:
+            await conn.execute(
+                "CALL sp_make_draft_pick($1, $2, $3, $4, $5, $6::roster_slot_enum)",
+                league_id,
+                team["fantasy_team_id"],
+                body.player_id,
+                draft_state["current_round"],
+                draft_state["next_pick_number"],
+                slot,
+            )
+        except Exception:
+            raise HTTPException(status_code=409, detail="Jugador ya drafteado en esta liga")
+
+        is_final_pick = draft_state["next_pick_number"] == draft_state["total_slots"]
+        if is_final_pick:
+            await conn.execute(
+                "UPDATE leagues SET draft_status = 'completed' WHERE league_id = $1",
                 league_id,
             )
-            if not league or league["draft_status"] != "in_progress":
-                raise HTTPException(status_code=400, detail="El draft no esta activo")
-
-            team = await conn.fetchrow(
-                "SELECT fantasy_team_id FROM fantasy_teams WHERE league_id = $1 AND user_id = $2",
-                league_id, user["user_id"],
-            )
-            if not team:
-                raise HTTPException(status_code=403, detail="No tienes equipo en esta liga")
-
-            player_team = await conn.fetchrow(
-                """SELECT t.is_eliminated, t.abbreviation
-                   FROM players p JOIN nba_teams t ON p.team_id = t.team_id
-                   WHERE p.player_id = $1""",
-                body.player_id,
-            )
-            if not player_team:
-                raise HTTPException(status_code=404, detail="Jugador no existe")
-            if player_team["is_eliminated"]:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"{player_team['abbreviation']} no esta en playoffs — jugador no draftable",
-                )
-
-            draft_state = await _build_draft_state(conn, league_id)
-            if draft_state["next_pick_number"] is None or not draft_state["on_the_clock"]:
-                raise HTTPException(status_code=400, detail="El draft ya completo todos sus picks")
-            if draft_state["on_the_clock"]["fantasy_team_id"] != team["fantasy_team_id"]:
-                raise HTTPException(
-                    status_code=403,
-                    detail=f"No es tu turno. En el reloj esta {draft_state['on_the_clock']['team_name']}",
-                )
-
-            roster_size = await conn.fetchval(
-                "SELECT COUNT(*) FROM roster_players WHERE fantasy_team_id = $1 AND released_at IS NULL",
-                team["fantasy_team_id"],
-            )
-            if roster_size >= len(DRAFT_SLOTS):
-                raise HTTPException(status_code=400, detail="Tu roster esta lleno")
-            slot = DRAFT_SLOTS[roster_size]
-
-            try:
-                await conn.execute(
-                    """INSERT INTO draft_picks (league_id, fantasy_team_id, player_id, round_number, pick_number)
-                       VALUES ($1, $2, $3, $4, $5)""",
-                    league_id,
-                    team["fantasy_team_id"],
-                    body.player_id,
-                    draft_state["current_round"],
-                    draft_state["next_pick_number"],
-                )
-            except Exception:
-                raise HTTPException(status_code=409, detail="Jugador ya drafteado en esta liga")
-
-            await conn.execute(
-                """INSERT INTO roster_players (fantasy_team_id, player_id, roster_slot, acquired_via)
-                   VALUES ($1, $2, $3::roster_slot_enum, 'draft')""",
-                team["fantasy_team_id"], body.player_id, slot,
-            )
-
-            await conn.execute(
-                """INSERT INTO transactions (fantasy_team_id, player_id, transaction_type)
-                   VALUES ($1, $2, 'add')""",
-                team["fantasy_team_id"], body.player_id,
-            )
-
-            is_final_pick = draft_state["next_pick_number"] == draft_state["total_slots"]
-            if is_final_pick:
-                await conn.execute(
-                    "UPDATE leagues SET draft_status = 'completed' WHERE league_id = $1",
-                    league_id,
-                )
 
     return {
         "pick_number": draft_state["next_pick_number"],
