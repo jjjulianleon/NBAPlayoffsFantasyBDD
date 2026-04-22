@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Bell, Menu, Trophy, User2, X } from 'lucide-react';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../auth-context';
 import { api } from '../api';
 import { cn, getCurrentPlayoffPhase, getInitials } from '../lib/utils';
 

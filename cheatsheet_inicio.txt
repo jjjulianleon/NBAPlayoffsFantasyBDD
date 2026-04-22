@@ -72,7 +72,8 @@ REQUISITOS PREVIOS
 2.5 Verificar .env en la raiz (playoff-hoops/.env). Debe contener al menos:
     DATABASE_URL=postgresql://playoff:playoff_dev@localhost:5432/playoff_hoops
     SECRET_KEY=dev-secret-change-in-prod
-    OPENAI_API_KEY=sk-...    # opcional (para scouting reports)
+    OPENAI_API_KEY=sk-...        # opcional (funciones IA)
+    OPENAI_LINEUP_MODEL=gpt-5.1  # opcional (comentario del lineup)
 
 2.6 Levantar el API (queda escuchando en http://localhost:8000):
     uvicorn backend.main:app --reload

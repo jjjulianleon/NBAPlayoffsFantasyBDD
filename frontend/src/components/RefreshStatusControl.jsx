@@ -262,7 +262,6 @@ export default function RefreshStatusControl({ user }) {
       });
     } else {
       latestStateRef.current = null;
-      setState(null);
       stopPolling();
     }
 

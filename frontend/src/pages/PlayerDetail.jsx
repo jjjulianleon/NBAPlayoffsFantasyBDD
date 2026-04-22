@@ -10,7 +10,7 @@ import Skeleton from '../components/Skeleton';
 import StatBlock from '../components/StatBlock';
 import Table from '../components/Table';
 import TeamLogo from '../components/TeamLogo';
-import { formatDateTime, formatNumber, formatPercent, getPlayerName, normalizeScoutingText } from '../lib/utils';
+import { formatDateLabel, formatDateTime, formatNumber, formatPercent, getPlayerName, normalizeScoutingText } from '../lib/utils';
 import { getTeamColor } from '../lib/teamData';
 
 const TABS = [
@@ -97,7 +97,7 @@ export default function PlayerDetail() {
   const topGame = Math.max(...games.map((game) => Number(game.fantasy_points) || 0), 0);
 
   const gameColumns = [
-    { key: 'game_date', label: 'Fecha' },
+    { key: 'game_date', label: 'Fecha', render: (row) => formatDateLabel(row.game_date, { month: 'short', day: 'numeric', year: 'numeric' }) },
     { key: 'playoff_round', label: 'Ronda', render: (row) => <RoundChip round={row.playoff_round} /> },
     { key: 'matchup', label: 'Cruce' },
     { key: 'minutes_played', label: 'MIN', align: 'right', render: (row) => <span className="font-stat text-xl font-black text-[--color-text]">{row.minutes_played}</span> },

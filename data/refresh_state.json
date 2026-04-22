@@ -1,8 +1,9 @@
 {
-  "status": "running",
-  "trigger": "auto",
-  "started_at": "2026-04-20T18:13:28.182061+00:00",
+  "status": "idle",
+  "trigger": null,
+  "started_at": null,
   "finished_at": null,
   "duration_seconds": null,
-  "last_error": null
+  "last_error": null,
+  "runner_pid": null
 }

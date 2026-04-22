@@ -1,8 +1,18 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { cn } from '../lib/utils';
 
-export default function Modal({ open, onClose, title, children, size = 'max-w-xl' }) {
+export default function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  size = 'max-w-xl',
+  scrollable = false,
+  panelClassName = '',
+  bodyClassName = '',
+}) {
   const panelRef = useRef(null);
 
   useEffect(() => {
@@ -25,7 +35,7 @@ export default function Modal({ open, onClose, title, children, size = 'max-w-xl
       document.body.style.overflow = previous;
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [open]);
+  }, [onClose, open]);
 
   if (!open) {
     return null;
@@ -37,7 +47,12 @@ export default function Modal({ open, onClose, title, children, size = 'max-w-xl
       <div
         ref={panelRef}
         tabIndex={-1}
-        className={`modal-panel relative z-[71] w-full ${size} rounded-[20px] border border-[--color-border-strong] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.55)] outline-none`}
+        className={cn(
+          'modal-panel relative z-[71] w-full rounded-[20px] border border-[--color-border-strong] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.55)] outline-none',
+          size,
+          scrollable && 'flex max-h-[calc(100vh-4rem)] flex-col overflow-hidden',
+          panelClassName,
+        )}
         style={{ background: 'linear-gradient(180deg, rgba(28,28,33,0.98) 0%, rgba(20,20,23,1) 100%)' }}
       >
         <div className="mb-5 flex items-center justify-between gap-4">
@@ -46,7 +61,9 @@ export default function Modal({ open, onClose, title, children, size = 'max-w-xl
             <X className="h-4 w-4" />
           </button>
         </div>
-        {children}
+        <div className={cn(scrollable && 'min-h-0 flex-1 overflow-y-auto', bodyClassName)}>
+          {children}
+        </div>
       </div>
     </div>,
     document.body,

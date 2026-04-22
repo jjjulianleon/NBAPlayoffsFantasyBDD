@@ -20,3 +20,7 @@ data/*.log
 data/*.stdout
 data/kaggle/
 https:/
+.codex
+.codex/
+AGENTS.md
+data/backups/

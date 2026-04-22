@@ -257,13 +257,8 @@ export default function Games() {
     let cancelled = false;
 
     if (!selectedGame?.game_id) {
-      setDetail(null);
-      setDetailLoading(false);
       return undefined;
     }
-
-    setDetailLoading(true);
-    setDetail(null);
 
     api.gameDetail(selectedGame.game_id)
       .then((response) => {
@@ -344,7 +339,15 @@ export default function Games() {
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 {items.map((game) => (
-                  <GameCard key={game.game_id} game={game} onOpen={() => setSelectedGame(game)} />
+                  <GameCard
+                    key={game.game_id}
+                    game={game}
+                    onOpen={() => {
+                      setDetailLoading(true);
+                      setDetail(null);
+                      setSelectedGame(game);
+                    }}
+                  />
                 ))}
               </div>
             </section>
@@ -352,7 +355,16 @@ export default function Games() {
         </div>
       )}
 
-      <Modal open={Boolean(selectedGame)} onClose={() => setSelectedGame(null)} title="Resumen del partido" size="max-w-6xl">
+      <Modal
+        open={Boolean(selectedGame)}
+        onClose={() => {
+          setSelectedGame(null);
+          setDetail(null);
+          setDetailLoading(false);
+        }}
+        title="Resumen del partido"
+        size="max-w-6xl"
+      >
         {selectedGame ? <ExpandedGame game={selectedGame} detail={detail} detailLoading={detailLoading} /> : null}
       </Modal>
     </main>

@@ -5,6 +5,7 @@ import { api } from '../api';
 import EmptyState from '../components/EmptyState';
 import PlayerAvatar from '../components/PlayerAvatar';
 import RoundChip from '../components/RoundChip';
+import SelectMenu from '../components/SelectMenu';
 import Skeleton from '../components/Skeleton';
 import Table from '../components/Table';
 import TeamLogo from '../components/TeamLogo';
@@ -39,7 +40,7 @@ export default function Players() {
 
   useEffect(() => {
     api.teams().then(setTeams).catch(() => {});
-    api.leaderboard('avg_fantasy_pts', 100)
+    api.leaderboard('avg_fantasy_pts', 100, true)
       .then((rows) => {
         setEnrichment(
           Object.fromEntries(
@@ -69,6 +70,7 @@ export default function Players() {
         if (team) {
           params.set('team', team);
         }
+        params.set('include_eliminated', 'true');
         params.set('limit', '50');
         params.set('offset', String(offset));
         const result = await api.players(params.toString());
@@ -146,6 +148,11 @@ export default function Players() {
     }
     return chips;
   }, [positions, search, status, team, teams]);
+
+  const sortOptions = useMemo(
+    () => SORTS.map((item) => ({ value: item.key, label: item.label })),
+    [],
+  );
 
   const columns = [
     { key: 'rank', label: '#', render: (_, index) => <span className="font-stat text-2xl font-black text-[--color-text-dim]">{index + 1}</span> },
@@ -319,9 +326,13 @@ export default function Players() {
               </div>
             ) : null}
           </div>
-          <select className="field min-w-[220px]" value={sort} onChange={(event) => setSort(event.target.value)}>
-            {SORTS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
-          </select>
+          <SelectMenu
+            label="Ordenar jugadores"
+            value={sort}
+            options={sortOptions}
+            onChange={setSort}
+            className="min-w-[220px] md:max-w-[260px]"
+          />
         </div>
 
         {loading && offset === 0 ? (

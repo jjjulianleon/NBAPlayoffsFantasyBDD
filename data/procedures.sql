@@ -104,7 +104,7 @@ CREATE OR REPLACE PROCEDURE sp_make_draft_pick(
     p_pick            INT,
     p_slot            roster_slot_enum
 ) LANGUAGE plpgsql AS $$
-DECLARE v_existing_pick INT;
+    DECLARE v_existing_pick INT;
 BEGIN
     -- Bloqueo pesimista: lock las filas relevantes
     PERFORM 1 FROM draft_picks
@@ -118,6 +118,15 @@ BEGIN
 
     IF v_existing_pick IS NOT NULL THEN
         RAISE EXCEPTION 'Player % already drafted in league %', p_player_id, p_league_id;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+          FROM fantasy_teams
+         WHERE fantasy_team_id = p_fantasy_team_id
+           AND league_id = p_league_id
+    ) THEN
+        RAISE EXCEPTION 'Fantasy team % does not belong to league %', p_fantasy_team_id, p_league_id;
     END IF;
 
     INSERT INTO draft_picks (league_id, fantasy_team_id, player_id, round_number, pick_number)
@@ -209,7 +218,8 @@ BEGIN
     INSERT INTO transactions (fantasy_team_id, player_id, transaction_type)
     SELECT p_fantasy_team_id, player_id, 'drop'
       FROM roster_players
-     WHERE fantasy_team_id = p_fantasy_team_id;
+     WHERE fantasy_team_id = p_fantasy_team_id
+       AND released_at IS NULL;
 
     DELETE FROM roster_players WHERE fantasy_team_id = p_fantasy_team_id;
     DELETE FROM draft_picks    WHERE fantasy_team_id = p_fantasy_team_id;
@@ -230,7 +240,8 @@ BEGIN
     SELECT COUNT(*) INTO v_exists
       FROM roster_players
      WHERE fantasy_team_id = p_fantasy_team_id
-       AND player_id       = p_player_id;
+       AND player_id       = p_player_id
+       AND released_at IS NULL;
 
     IF v_exists = 0 THEN
         RAISE EXCEPTION 'Player % not on roster of team %', p_player_id, p_fantasy_team_id;
@@ -239,9 +250,12 @@ BEGIN
     INSERT INTO transactions (fantasy_team_id, player_id, transaction_type)
     VALUES (p_fantasy_team_id, p_player_id, 'drop');
 
-    DELETE FROM roster_players
+    UPDATE roster_players
+       SET is_active = FALSE,
+           released_at = NOW()
      WHERE fantasy_team_id = p_fantasy_team_id
-       AND player_id       = p_player_id;
+       AND player_id       = p_player_id
+       AND released_at IS NULL;
 
     COMMIT;
 END $$;
@@ -263,7 +277,8 @@ BEGIN
         INSERT INTO transactions (fantasy_team_id, player_id, transaction_type)
         SELECT v_ft_id, player_id, 'drop'
           FROM roster_players
-         WHERE fantasy_team_id = v_ft_id;
+         WHERE fantasy_team_id = v_ft_id
+           AND released_at IS NULL;
 
         DELETE FROM roster_players WHERE fantasy_team_id = v_ft_id;
         DELETE FROM draft_picks    WHERE fantasy_team_id = v_ft_id;
@@ -290,15 +305,19 @@ BEGIN
       FROM roster_players
      WHERE fantasy_team_id = p_fantasy_team_id
        AND player_id       = p_drop_player_id
+       AND released_at IS NULL
        FOR UPDATE;
 
     IF v_slot IS NULL THEN
         RAISE EXCEPTION 'Player % not on roster', p_drop_player_id;
     END IF;
 
-    DELETE FROM roster_players
+    UPDATE roster_players
+       SET is_active = FALSE,
+           released_at = NOW()
      WHERE fantasy_team_id = p_fantasy_team_id
-       AND player_id       = p_drop_player_id;
+       AND player_id       = p_drop_player_id
+       AND released_at IS NULL;
 
     INSERT INTO roster_players (fantasy_team_id, player_id, roster_slot, acquired_via)
     VALUES (p_fantasy_team_id, p_add_player_id, v_slot, 'free_agent');

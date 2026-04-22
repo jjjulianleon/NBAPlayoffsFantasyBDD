@@ -8,6 +8,7 @@ frontend pueda mostrar "en curso", "ultimo exitoso hace Xh", etc.
 """
 import argparse
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -16,10 +17,75 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 STATE_FILE = PROJECT_DIR / "data" / "refresh_state.json"
 REFRESH_SCRIPT = PROJECT_DIR / "scripts" / "refresh_nba.sh"
+REFRESH_TIMEOUT_SECONDS = 1800
+STALE_GRACE_SECONDS = 300
 
 
 def utcnow_iso():
     return datetime.now(timezone.utc).isoformat()
+
+
+def parse_iso_datetime(value):
+    if not value:
+        return None
+
+    try:
+        return datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def process_exists(pid):
+    if not pid:
+        return False
+
+    try:
+        os.kill(int(pid), 0)
+    except (OSError, TypeError, ValueError):
+        return False
+
+    return True
+
+
+def normalize_state(state):
+    normalized = {
+        "status": state.get("status", "idle"),
+        "trigger": state.get("trigger"),
+        "started_at": state.get("started_at"),
+        "finished_at": state.get("finished_at"),
+        "duration_seconds": state.get("duration_seconds"),
+        "last_error": state.get("last_error"),
+        "runner_pid": state.get("runner_pid"),
+    }
+
+    if normalized["status"] != "running":
+        return normalized
+
+    started_at = parse_iso_datetime(normalized["started_at"])
+    now = datetime.now(timezone.utc)
+    stale_after = REFRESH_TIMEOUT_SECONDS + STALE_GRACE_SECONDS
+    pid_alive = process_exists(normalized["runner_pid"])
+
+    if started_at is None:
+        return {
+            **normalized,
+            "status": "error",
+            "finished_at": utcnow_iso(),
+            "duration_seconds": None,
+            "last_error": "Refresh invalido: started_at ausente o corrupto",
+        }
+
+    elapsed = (now - started_at).total_seconds()
+    if pid_alive and elapsed <= stale_after:
+        return normalized
+
+    return {
+        **normalized,
+        "status": "error",
+        "finished_at": utcnow_iso(),
+        "duration_seconds": round(max(elapsed, 0), 1),
+        "last_error": "Refresh atascado: no termino dentro del timeout esperado o el proceso ya no existe",
+    }
 
 
 def read_state():
@@ -31,11 +97,12 @@ def read_state():
             "finished_at": None,
             "duration_seconds": None,
             "last_error": None,
+            "runner_pid": None,
         }
     try:
-        return json.loads(STATE_FILE.read_text())
+        return normalize_state(json.loads(STATE_FILE.read_text()))
     except (json.JSONDecodeError, OSError):
-        return {"status": "idle"}
+        return {"status": "idle", "runner_pid": None}
 
 
 def write_state(state):
@@ -61,6 +128,7 @@ def main():
         "finished_at": None,
         "duration_seconds": None,
         "last_error": None,
+        "runner_pid": os.getpid(),
     })
 
     start_ts = datetime.now(timezone.utc)
@@ -72,7 +140,7 @@ def main():
             cwd=str(PROJECT_DIR),
             capture_output=True,
             text=True,
-            timeout=1800,
+            timeout=REFRESH_TIMEOUT_SECONDS,
         )
         rc = proc.returncode
         if rc != 0:
@@ -95,6 +163,7 @@ def main():
         "finished_at": finished,
         "duration_seconds": round(duration, 1),
         "last_error": last_error,
+        "runner_pid": None,
     })
 
     return rc

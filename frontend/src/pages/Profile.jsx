@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { LogOut, Save } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../auth-context';
 import { api } from '../api';
 import EmptyState from '../components/EmptyState';
 import Skeleton from '../components/Skeleton';

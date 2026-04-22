@@ -9,8 +9,16 @@ async function request(path, options = {}) {
   if (res.status === 401) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    window.location.href = '/login';
-    return;
+    const error = new Error('Sesion expirada');
+    error.status = 401;
+    error.detail = 'Sesion expirada';
+
+    const isAuthRoute = ['/login', '/register'].includes(window.location.pathname);
+    if (!isAuthRoute) {
+      window.location.replace('/login');
+    }
+
+    throw error;
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: 'Error del servidor' }));
@@ -33,8 +41,8 @@ export const api = {
   player: (id) => request(`/players/${id}`),
   playerGames: (id, limit = 20) => request(`/players/${id}/games?limit=${limit}`),
   hotCold: (limit = 20) => request(`/players/hot-cold?limit=${limit}`),
-  leaderboard: (stat = 'avg_fantasy_pts', limit = 25) =>
-    request(`/players/leaderboard?stat=${stat}&limit=${limit}`),
+  leaderboard: (stat = 'avg_fantasy_pts', limit = 25, includeEliminated = false) =>
+    request(`/players/leaderboard?stat=${stat}&limit=${limit}&include_eliminated=${includeEliminated}`),
 
   // Fantasy
   createLeague: (data) => request('/fantasy/leagues', { method: 'POST', body: JSON.stringify(data) }),

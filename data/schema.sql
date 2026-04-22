@@ -163,8 +163,11 @@ CREATE TABLE fantasy_teams (
     rank_in_league  INT,
     created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_user_league UNIQUE (user_id, league_id),
+    CONSTRAINT uq_ft_league_team UNIQUE (league_id, fantasy_team_id),
     CONSTRAINT fk_ft_user   FOREIGN KEY (user_id)   REFERENCES users(user_id),
-    CONSTRAINT fk_ft_league FOREIGN KEY (league_id) REFERENCES leagues(league_id)
+    CONSTRAINT fk_ft_league FOREIGN KEY (league_id) REFERENCES leagues(league_id),
+    CONSTRAINT fk_ft_member FOREIGN KEY (league_id, user_id)
+        REFERENCES league_members(league_id, user_id)
 );
 CREATE INDEX idx_ft_league ON fantasy_teams(league_id);
 
@@ -180,11 +183,22 @@ CREATE TABLE roster_players (
     is_active        BOOLEAN NOT NULL DEFAULT TRUE,
     acquired_via     acquired_via_enum NOT NULL DEFAULT 'draft',
     acquired_at      TIMESTAMP NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_team_player UNIQUE (fantasy_team_id, player_id),
+    released_at      TIMESTAMP,
+    CONSTRAINT chk_roster_active_window CHECK (
+        (is_active = TRUE  AND released_at IS NULL) OR
+        (is_active = FALSE AND released_at IS NOT NULL)
+    ),
     CONSTRAINT fk_rp_team   FOREIGN KEY (fantasy_team_id) REFERENCES fantasy_teams(fantasy_team_id) ON DELETE CASCADE,
     CONSTRAINT fk_rp_player FOREIGN KEY (player_id)       REFERENCES players(player_id)
 );
 CREATE INDEX idx_rp_team ON roster_players(fantasy_team_id);
+CREATE INDEX idx_rp_player ON roster_players(player_id);
+CREATE UNIQUE INDEX uq_rp_active_team_player
+    ON roster_players(fantasy_team_id, player_id)
+    WHERE released_at IS NULL;
+CREATE INDEX idx_rp_active_team_slot
+    ON roster_players(fantasy_team_id, roster_slot)
+    WHERE released_at IS NULL;
 
 -- =============================================================
 -- 10. DRAFT_PICKS  (historial de draft)
@@ -199,8 +213,8 @@ CREATE TABLE draft_picks (
     picked_at        TIMESTAMP NOT NULL DEFAULT NOW(),
     CONSTRAINT uq_league_player UNIQUE (league_id, player_id),
     CONSTRAINT uq_league_pick UNIQUE (league_id, pick_number),
-    CONSTRAINT fk_dp_league FOREIGN KEY (league_id)       REFERENCES leagues(league_id) ON DELETE CASCADE,
-    CONSTRAINT fk_dp_team   FOREIGN KEY (fantasy_team_id) REFERENCES fantasy_teams(fantasy_team_id) ON DELETE CASCADE,
+    CONSTRAINT fk_dp_team_in_league FOREIGN KEY (league_id, fantasy_team_id)
+        REFERENCES fantasy_teams(league_id, fantasy_team_id) ON DELETE CASCADE,
     CONSTRAINT fk_dp_player FOREIGN KEY (player_id)       REFERENCES players(player_id)
 );
 

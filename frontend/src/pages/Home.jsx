@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarDays, Flame, Sparkles, Trophy, Users } from 'lucide-react';
 import { api } from '../api';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../auth-context';
 import RoundChip from '../components/RoundChip';
 import Badge from '../components/Badge';
 import TeamLogo from '../components/TeamLogo';

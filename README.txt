@@ -20,7 +20,7 @@ REQUISITOS DEL SISTEMA
 - Node.js 20+ y npm
 - Linux/macOS (cron opcional para refresh diario)
 - Cuenta Kaggle con kaggle.json en ~/.kaggle/ (solo para refresh)
-- API key de OpenAI (solo para scouting reports — opcional)
+- API key de OpenAI (opcional, para scouting reports y comentarios de lineup)
 
 
 INSTALACION RAPIDA (3 PASOS)
@@ -56,7 +56,8 @@ INSTALACION RAPIDA (3 PASOS)
    cat > .env <<'EOF'
    DATABASE_URL=postgresql://playoff:playoff_dev@localhost:5432/playoff_hoops
    SECRET_KEY=dev-secret-change-in-prod
-   OPENAI_API_KEY=sk-...   # opcional, para scouting reports IA
+   OPENAI_API_KEY=sk-...        # opcional, funciones IA
+   OPENAI_LINEUP_MODEL=gpt-5.1  # opcional, comentario del lineup sugerido
    EOF
 
    # Levantar API en http://localhost:8000:
@@ -92,17 +93,17 @@ DEPENDENCIAS PYTHON (requirements.txt)
 - bcrypt               Encriptacion de passwords
 - pydantic[email]      Validacion de schemas
 - python-dotenv        Variables de entorno
-- openai               Scouting reports con gpt-4o-mini
+- openai               Scouting reports IA + comentario explicativo del lineup
 - kaggle               Descarga del dataset NBA
 - pandas               Procesamiento del CSV de Kaggle
 
 
 DEPENDENCIAS FRONTEND (frontend/package.json)
 ---------------------------------------------
-- React 18           UI
+- React 19           UI
 - Vite              Bundler + dev server (proxy /api -> :8000)
 - Tailwind CSS v4   Estilos
-- React Router v6   Navegacion SPA
+- React Router v7   Navegacion SPA
 
 
 ESTRUCTURA DEL PROYECTO
@@ -146,7 +147,8 @@ USO TIPICO
 7. "Completar Draft"
 8. Navega "Jugadores", "Rachas", "Partidos", "Reportes"
 9. En la ficha de un jugador, click "Scouting Report (IA)"
-   genera analisis con gpt-4o-mini
+   genera analisis IA del jugador
+10. En "Mi Equipo", revisa la alineacion sugerida y su comentario explicativo IA
 
 
 PUERTOS Y URLs

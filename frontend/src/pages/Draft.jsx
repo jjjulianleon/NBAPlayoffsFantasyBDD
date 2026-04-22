@@ -1,103 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, ChevronDown, Search } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, Search } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../auth-context';
+import SelectMenu from '../components/SelectMenu';
 import DraftClock from '../components/DraftClock';
 import EmptyState from '../components/EmptyState';
 import PlayerAvatar from '../components/PlayerAvatar';
 import RoundChip from '../components/RoundChip';
 import Skeleton from '../components/Skeleton';
 import { useToast } from '../components/Toast';
-import { cn, formatNumber, getPlayerName, ROSTER_SLOTS } from '../lib/utils';
+import { formatNumber, getPlayerName, ROSTER_SLOTS } from '../lib/utils';
 import { getTeamColor } from '../lib/teamData';
-
-function FilterSelect({ label, value, options, onChange }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef(null);
-  const selected = options.find((option) => option.value === value) ?? options[0];
-
-  useEffect(() => {
-    if (!open) {
-      return undefined;
-    }
-
-    function handlePointerDown(event) {
-      if (containerRef.current?.contains(event.target)) {
-        return;
-      }
-
-      setOpen(false);
-    }
-
-    function handleKeyDown(event) {
-      if (event.key === 'Escape') {
-        setOpen(false);
-      }
-    }
-
-    window.addEventListener('pointerdown', handlePointerDown);
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [open]);
-
-  return (
-    <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        className={cn(
-          'field flex w-full items-center justify-between gap-3 px-4 text-left !font-black text-[--color-text]',
-          open && 'border-[--color-accent] ring-2 ring-[--color-accent]/20',
-        )}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={label}
-      >
-        <span className="min-w-0 truncate">{selected.label}</span>
-        <ChevronDown className={cn('h-4 w-4 shrink-0 text-[--color-text-muted] transition-transform duration-200', open && 'rotate-180 text-[--color-accent]')} />
-      </button>
-
-      {open ? (
-        <div className="surface-card absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden border-[--color-border-strong] bg-[linear-gradient(180deg,rgba(20,20,23,0.98),rgba(28,28,33,0.98))] shadow-2xl">
-          <div className="border-b border-[--color-border] px-4 py-3">
-            <p className="text-[10px] font-body font-semibold uppercase tracking-[0.18em] text-[--color-text-muted]">{label}</p>
-          </div>
-          <div className="max-h-72 overflow-y-auto p-2">
-            {options.map((option) => {
-              const active = option.value === value;
-              return (
-                <button
-                  key={option.value || option.label}
-                  type="button"
-                  onClick={() => {
-                    onChange(option.value);
-                    setOpen(false);
-                  }}
-                  className={cn(
-                    'flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition-colors duration-150',
-                    active
-                      ? 'bg-[--color-accent]/12 text-[--color-text]'
-                      : 'text-[--color-text-muted] hover:bg-[--color-bg-elev-2] hover:text-[--color-text]',
-                  )}
-                  role="option"
-                  aria-selected={active}
-                >
-                  <span className={cn('truncate text-sm', active ? 'font-black' : 'font-semibold')}>{option.label}</span>
-                  {active ? <Check className="h-4 w-4 shrink-0 text-[--color-accent]" /> : null}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 function DraftCard({ player, draftedBy, onDraft, disabled }) {
   return (
@@ -163,7 +77,7 @@ export default function Draft() {
   const [hideDrafted, setHideDrafted] = useState(true);
   const [loading, setLoading] = useState(true);
 
-  async function loadDraftRoom({ silent = false } = {}) {
+  const loadDraftRoom = useCallback(async ({ silent = false } = {}) => {
     if (!silent) {
       setLoading(true);
     }
@@ -184,14 +98,14 @@ export default function Draft() {
         setLoading(false);
       }
     }
-  }
+  }, [id, user?.username]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       loadDraftRoom().catch(() => setLoading(false));
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, [id, user?.username]);
+  }, [id, user?.username, loadDraftRoom]);
 
   useEffect(() => {
     if (!draftState || draftState.draft_status !== 'in_progress') {
@@ -203,7 +117,7 @@ export default function Draft() {
     }, 4000);
 
     return () => window.clearInterval(interval);
-  }, [draftState, id, user?.username]);
+  }, [draftState, loadDraftRoom]);
 
   const draftedMap = useMemo(() => {
     return Object.fromEntries(
@@ -339,8 +253,8 @@ export default function Draft() {
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[--color-text-dim]" />
                 <input className="field w-full pl-11" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar jugador..." />
               </label>
-              <FilterSelect label="Equipos" value={teamFilter} options={teamOptions} onChange={setTeamFilter} />
-              <FilterSelect label="Posiciones" value={positionFilter} options={positionOptions} onChange={setPositionFilter} />
+              <SelectMenu label="Equipos" value={teamFilter} options={teamOptions} onChange={setTeamFilter} />
+              <SelectMenu label="Posiciones" value={positionFilter} options={positionOptions} onChange={setPositionFilter} />
               <button
                 type="button"
                 className={hideDrafted ? 'button-primary md:col-span-2 xl:col-span-3 !font-black' : 'button-secondary md:col-span-2 xl:col-span-3 !font-black'}

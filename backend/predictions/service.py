@@ -2,9 +2,16 @@ from __future__ import annotations
 
 from collections import defaultdict, deque
 from math import sqrt
+try:
+    from openai import AsyncOpenAI
+except ImportError:  # pragma: no cover - optional dependency in local setups
+    AsyncOpenAI = None
+
+from ..config import OPENAI_API_KEY, OPENAI_LINEUP_MODEL
 
 STARTER_SLOTS = ["G1", "G2", "F1", "F2", "C", "UTIL"]
 BENCH_SLOTS = ["BN1", "BN2"]
+lineup_commentary_client = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY and AsyncOpenAI else None
 
 
 def _avg(values: list[float]) -> float:
@@ -125,6 +132,97 @@ def _assign_remaining_slots(results: list[dict], starter_assignment: dict[str, i
         recommended_slot_by_player[player["player_id"]] = slot
 
     return recommended_slot_by_player
+
+
+def _build_local_lineup_commentary(results: list[dict], validation: dict) -> str:
+    recommended_starters = [
+        player for player in results if player.get("recommended_role") == "starter"
+    ]
+    featured_players = sorted(
+        recommended_starters,
+        key=lambda item: item.get("predicted_fantasy_pts") or 0,
+        reverse=True,
+    )[:3]
+    featured_names = ", ".join(player["player_name"] for player in featured_players)
+    projected_gain = float(validation.get("projected_gain") or 0)
+    unavailable = int(validation.get("forced_unavailable_starters") or 0)
+    out_of_position = int(validation.get("forced_out_of_position") or 0)
+
+    if projected_gain > 0:
+        gain_line = f"La recomendacion sube la proyeccion del quinteto en {projected_gain:.2f} fantasy points frente a la alineacion actual."
+    elif projected_gain < 0:
+        gain_line = f"Aun con un ajuste de {projected_gain:.2f} fantasy points, la propuesta prioriza jugadores disponibles y mejor encaje por slot."
+    else:
+        gain_line = "La alineacion actual ya esta muy cerca del mejor acomodo posible con este roster."
+
+    constraint_bits = []
+    if unavailable:
+        constraint_bits.append(f"{unavailable} titular(es) proyectado(s) quedan condicionados por falta de rival activo")
+    if out_of_position:
+        constraint_bits.append(f"{out_of_position} ajuste(s) se hacen fuera de posicion ideal")
+    constraint_line = (
+        " Tambien se consideran restricciones del roster: " + "; ".join(constraint_bits) + "."
+        if constraint_bits else
+        ""
+    )
+
+    if featured_names:
+        return (
+            f"Se priorizaron {featured_names} porque concentran la mejor proyeccion fantasy para esta ronda segun forma reciente, muestra total y antecedente contra el rival probable. "
+            f"{gain_line}{constraint_line}"
+        )
+    return gain_line
+
+
+async def _generate_lineup_commentary(results: list[dict], validation: dict) -> tuple[str, str]:
+    fallback = _build_local_lineup_commentary(results, validation)
+    if not lineup_commentary_client:
+        return fallback, "local-heuristic-v1"
+
+    recommended_starters = [
+        player for player in results if player.get("recommended_role") == "starter"
+    ]
+    starter_lines = "\n".join(
+        f"- {player['player_name']} | slot {player.get('recommended_slot')} | {player['position']} | "
+        f"FP {float(player.get('predicted_fantasy_pts') or 0):.2f} | rival {player.get('opponent') or 'sin rival'} | "
+        f"confianza {float(player.get('confidence') or 0):.2f}"
+        for player in recommended_starters
+    )
+    moved_players = [
+        player for player in results
+        if player.get("needs_change") and player.get("recommended_slot")
+    ]
+    move_lines = "\n".join(
+        f"- {player['player_name']}: de {player['roster_slot']} a {player['recommended_slot']}"
+        for player in moved_players[:4]
+    ) or "- No hubo cambios de slots"
+
+    prompt = (
+        "Explica en espanol, en 2 oraciones cortas y sin markdown, por que esta alineacion fue recomendada.\n"
+        "Menciona como maximo 3 jugadores clave, la ganancia proyectada y cualquier restriccion importante de disponibilidad o posicion.\n\n"
+        f"Titulares recomendados:\n{starter_lines}\n\n"
+        f"Movimientos sugeridos:\n{move_lines}\n\n"
+        f"Validacion: ganancia proyectada={float(validation.get('projected_gain') or 0):.2f}, "
+        f"titulares sin rival={int(validation.get('forced_unavailable_starters') or 0)}, "
+        f"fuera de posicion={int(validation.get('forced_out_of_position') or 0)}."
+    )
+
+    try:
+        response = await lineup_commentary_client.responses.create(
+            model=OPENAI_LINEUP_MODEL,
+            instructions=(
+                "Eres un analista de fantasy basketball. Justifica una recomendacion de titulares con tono claro y breve. "
+                "No inventes datos y no uses markdown."
+            ),
+            input=prompt,
+        )
+        commentary = (response.output_text or "").strip()
+        if commentary:
+            return commentary, OPENAI_LINEUP_MODEL
+    except Exception:
+        pass
+
+    return fallback, "local-heuristic-v1"
 
 
 def build_local_scouting_report(player: dict, recent_games: list[dict], streak: str, next_matchup: dict | None, opponent_history: list[dict]) -> str:
@@ -344,7 +442,7 @@ async def backfill_predictions(conn, model_version: str = "heuristic-v1") -> dic
     }
 
 
-async def build_lineup_recommendation(conn, fantasy_team_id: int) -> dict:
+async def build_lineup_recommendation(conn, fantasy_team_id: int, include_commentary: bool = True) -> dict:
     roster = await conn.fetch("""
         SELECT rp.player_id, rp.roster_slot, rp.is_active, rp.acquired_via,
                p.first_name || ' ' || p.last_name AS player_name,
@@ -354,6 +452,7 @@ async def build_lineup_recommendation(conn, fantasy_team_id: int) -> dict:
         JOIN players p ON rp.player_id = p.player_id
         JOIN nba_teams t ON p.team_id = t.team_id
         WHERE rp.fantasy_team_id = $1
+          AND rp.released_at IS NULL
         ORDER BY rp.roster_slot
     """, fantasy_team_id)
 
@@ -495,22 +594,35 @@ async def build_lineup_recommendation(conn, fantasy_team_id: int) -> dict:
     )
     recommended_starters = [player for player in results if player["recommended_slot"] in STARTER_SLOTS]
     active_players = sum(1 for player in results if player["availability"] == "active")
+    validation = {
+        "current_projected_total": current_projected_total,
+        "recommended_projected_total": recommended_projected_total,
+        "projected_gain": round(recommended_projected_total - current_projected_total, 2),
+        "recommended_starters": len(recommended_starters),
+        "active_players": active_players,
+        "forced_out_of_position": sum(1 for player in recommended_starters if not player["slot_fit"]),
+        "forced_unavailable_starters": sum(1 for player in recommended_starters if player["availability"] != "active"),
+    }
+    commentary = None
+    commentary_source = None
+    if include_commentary:
+        commentary, commentary_source = await _generate_lineup_commentary(results, validation)
 
     return {
+        **(
+            {
+                "decision_commentary": commentary,
+                "decision_commentary_generated_by": commentary_source,
+            }
+            if include_commentary else
+            {}
+        ),
         "fantasy_team_id": fantasy_team_id,
         "model_version": "heuristic-v1-live",
         "opponent_rule": "R1 bracket (seed 1-8, 2-7, 3-6, 4-5)",
         "starter_slots": STARTER_SLOTS,
         "bench_slots": BENCH_SLOTS,
         "suggested_changes": sum(1 for player in results if player["needs_change"]),
-        "validation": {
-            "current_projected_total": current_projected_total,
-            "recommended_projected_total": recommended_projected_total,
-            "projected_gain": round(recommended_projected_total - current_projected_total, 2),
-            "recommended_starters": len(recommended_starters),
-            "active_players": active_players,
-            "forced_out_of_position": sum(1 for player in recommended_starters if not player["slot_fit"]),
-            "forced_unavailable_starters": sum(1 for player in recommended_starters if player["availability"] != "active"),
-        },
+        "validation": validation,
         "lineup": results,
     }

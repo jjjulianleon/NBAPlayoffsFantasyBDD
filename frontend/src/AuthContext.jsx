@@ -1,32 +1,59 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from './api';
+import { AuthContext } from './auth-context';
 
-const AuthContext = createContext(null);
+function readStoredUser() {
+  const saved = localStorage.getItem('user');
+  if (!saved) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(saved);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    localStorage.removeItem('user');
+    return null;
+  }
+}
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('user');
-    return saved ? JSON.parse(saved) : null;
-  });
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(() => readStoredUser());
+  const [loading, setLoading] = useState(() => Boolean(localStorage.getItem('token')));
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (token) {
-      api.me()
-        .then((u) => {
-          setUser(u);
-          localStorage.setItem('user', JSON.stringify(u));
-        })
-        .catch(() => {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-          setUser(null);
-        })
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
+    if (!token) {
+      return undefined;
     }
+
+    let cancelled = false;
+
+    api.me()
+      .then((u) => {
+        if (cancelled) {
+          return;
+        }
+        setUser(u);
+        localStorage.setItem('user', JSON.stringify(u));
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setUser(null);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const login = async (username, password) => {
@@ -59,5 +86,3 @@ export function AuthProvider({ children }) {
     </AuthContext.Provider>
   );
 }
-
-export const useAuth = () => useContext(AuthContext);

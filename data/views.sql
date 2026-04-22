@@ -25,7 +25,7 @@ SELECT
     l.league_name,
     ft.total_points,
     RANK() OVER (PARTITION BY ft.league_id ORDER BY ft.total_points DESC) AS league_rank,
-    COUNT(rp.roster_id) FILTER (WHERE rp.is_active) AS active_roster_size
+    COUNT(rp.roster_id) FILTER (WHERE rp.is_active AND rp.released_at IS NULL) AS active_roster_size
 FROM fantasy_teams ft
 JOIN users   u ON ft.user_id   = u.user_id
 JOIN leagues l ON ft.league_id = l.league_id
@@ -112,7 +112,8 @@ FROM fantasy_teams ft
 JOIN users          u  ON ft.user_id         = u.user_id
 JOIN roster_players rp ON ft.fantasy_team_id = rp.fantasy_team_id
 JOIN players        p  ON rp.player_id       = p.player_id
-JOIN nba_teams      t  ON p.team_id          = t.team_id;
+JOIN nba_teams      t  ON p.team_id          = t.team_id
+WHERE rp.released_at IS NULL;
 
 -- =============================================================
 -- VIEW 5: Reporte diario de scoring con multiplicador por ronda

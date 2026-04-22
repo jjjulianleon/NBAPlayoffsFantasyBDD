@@ -4,6 +4,7 @@ import { api } from '../api';
 import Table from '../components/Table';
 import Modal from '../components/Modal';
 import EmptyState from '../components/EmptyState';
+import SelectMenu from '../components/SelectMenu';
 import Skeleton from '../components/Skeleton';
 import PlayerAvatar from '../components/PlayerAvatar';
 import { useToast } from '../components/Toast';
@@ -121,6 +122,26 @@ export default function Reports() {
     }
   }
 
+  const accuracySummary = (() => {
+    const rows = reportData.accuracy || [];
+    const totalPredictions = rows.reduce((sum, row) => sum + Number(row.predictions_made || 0), 0);
+    if (!totalPredictions) {
+      return 0;
+    }
+    const weightedMae = rows.reduce(
+      (sum, row) => sum + (Number(row.mae || 0) * Number(row.predictions_made || 0)),
+      0,
+    ) / totalPredictions;
+    return weightedMae;
+  })();
+
+  const leagueOptions = leagues.length === 0
+    ? [{ value: '', label: 'No hay ligas disponibles' }]
+    : leagues.map((league) => ({
+        value: String(league.league_id),
+        label: league.league_name,
+      }));
+
   const seasonColumns = [
     { key: 'player_name', label: 'Jugador', render: (row) => <div className="flex items-center gap-3"><PlayerAvatar playerId={row.player_id} playerName={row.player_name} teamAbbr={row.team} size="sm" /><span className="font-body font-semibold text-[--color-text]">{row.player_name}</span></div> },
     { key: 'team', label: 'Equipo' },
@@ -195,9 +216,13 @@ export default function Reports() {
         <>
           <div className="mb-8 flex flex-wrap items-center gap-3">
             <span className="field-label">Liga seleccionada</span>
-            <select className="field min-w-[240px]" value={selectedLeagueId} onChange={(event) => setSelectedLeagueId(event.target.value)}>
-              {leagues.length === 0 ? <option value="">No hay ligas disponibles</option> : leagues.map((league) => <option key={league.league_id} value={league.league_id}>{league.league_name}</option>)}
-            </select>
+            <SelectMenu
+              label="Liga seleccionada"
+              value={selectedLeagueId}
+              options={leagueOptions}
+              onChange={setSelectedLeagueId}
+              className="min-w-[240px] flex-1 md:max-w-[420px] md:flex-none"
+            />
           </div>
 
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -209,7 +234,7 @@ export default function Reports() {
                 report.key === 'streaks' ? `${reportData.streaks?.filter((item) => item.streak_status === 'hot').length || 0}` :
                 report.key === 'roster' ? `${reportData.roster?.length || 0}` :
                 report.key === 'daily' ? formatNumber(reportData.daily?.[0]?.adjusted_fantasy_pts || 0) :
-                formatNumber(reportData.accuracy?.[0]?.mae || 0);
+                formatNumber(accuracySummary);
 
               return (
                 <article key={report.key} className="surface-card flex flex-col gap-5 p-6">
@@ -232,9 +257,16 @@ export default function Reports() {
         </>
       )}
 
-      <Modal open={Boolean(selectedReport)} onClose={() => setSelectedReport(null)} title={reportTable?.title || 'Precision del modelo'} size="max-w-6xl">
+      <Modal
+        open={Boolean(selectedReport)}
+        onClose={() => setSelectedReport(null)}
+        title={reportTable?.title || 'Precision del modelo'}
+        size="max-w-6xl"
+        scrollable
+        panelClassName="h-[85vh]"
+      >
         {reportTable ? (
-          <div className="space-y-4">
+          <div className="flex h-full min-h-0 flex-col gap-4">
             {reportTable.rows.length > 0 ? (
               <>
                 <div className="flex flex-wrap justify-end gap-3">
@@ -260,7 +292,9 @@ export default function Reports() {
                     Exportar CSV
                   </button>
                 </div>
-                <Table columns={reportTable.columns} rows={reportTable.rows} sortable />
+                <div className="min-h-0 flex-1 overflow-auto">
+                  <Table columns={reportTable.columns} rows={reportTable.rows} sortable />
+                </div>
               </>
             ) : (
               <EmptyState

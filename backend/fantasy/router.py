@@ -116,6 +116,7 @@ async def _build_draft_state(conn, league_id: int) -> dict:
             SELECT fantasy_team_id, COUNT(*) AS roster_size
             FROM roster_players
             WHERE fantasy_team_id = ANY($1::int[])
+              AND released_at IS NULL
             GROUP BY fantasy_team_id
         """, [team["fantasy_team_id"] for team in teams])
         roster_sizes = {row["fantasy_team_id"]: row["roster_size"] for row in size_rows}
@@ -578,7 +579,7 @@ async def make_pick(league_id: int, body: DraftPick, user=Depends(get_current_us
                 )
 
             roster_size = await conn.fetchval(
-                "SELECT COUNT(*) FROM roster_players WHERE fantasy_team_id = $1",
+                "SELECT COUNT(*) FROM roster_players WHERE fantasy_team_id = $1 AND released_at IS NULL",
                 team["fantasy_team_id"],
             )
             if roster_size >= len(DRAFT_SLOTS):
@@ -680,7 +681,12 @@ async def add_player(team_id: int, body: RosterAction, user=Depends(get_current_
     async with pool.acquire() as conn:
         async with conn.transaction():
             occupied = await conn.fetchval(
-                "SELECT 1 FROM roster_players WHERE fantasy_team_id = $1 AND roster_slot = $2::roster_slot_enum LIMIT 1",
+                """SELECT 1
+                   FROM roster_players
+                   WHERE fantasy_team_id = $1
+                     AND roster_slot = $2::roster_slot_enum
+                     AND released_at IS NULL
+                   LIMIT 1""",
                 team_id, body.roster_slot,
             )
             if occupied:
@@ -721,7 +727,7 @@ async def move_roster_player(team_id: int, body: MoveRosterPlayer, user=Depends(
             source = await conn.fetchrow("""
                 SELECT player_id, roster_slot
                 FROM roster_players
-                WHERE fantasy_team_id = $1 AND player_id = $2
+                WHERE fantasy_team_id = $1 AND player_id = $2 AND released_at IS NULL
                 FOR UPDATE
             """, team_id, body.player_id)
             if not source:
@@ -732,19 +738,23 @@ async def move_roster_player(team_id: int, body: MoveRosterPlayer, user=Depends(
             target = await conn.fetchrow("""
                 SELECT player_id, roster_slot
                 FROM roster_players
-                WHERE fantasy_team_id = $1 AND roster_slot = $2::roster_slot_enum
+                WHERE fantasy_team_id = $1 AND roster_slot = $2::roster_slot_enum AND released_at IS NULL
                 FOR UPDATE
             """, team_id, body.target_slot)
 
             await conn.execute(
-                "UPDATE roster_players SET roster_slot = $3::roster_slot_enum WHERE fantasy_team_id = $1 AND player_id = $2",
+                """UPDATE roster_players
+                   SET roster_slot = $3::roster_slot_enum
+                   WHERE fantasy_team_id = $1 AND player_id = $2 AND released_at IS NULL""",
                 team_id, body.player_id, body.target_slot,
             )
             swapped_player_id = None
             if target:
                 swapped_player_id = target["player_id"]
                 await conn.execute(
-                    "UPDATE roster_players SET roster_slot = $3::roster_slot_enum WHERE fantasy_team_id = $1 AND player_id = $2",
+                    """UPDATE roster_players
+                       SET roster_slot = $3::roster_slot_enum
+                       WHERE fantasy_team_id = $1 AND player_id = $2 AND released_at IS NULL""",
                     team_id, target["player_id"], source["roster_slot"],
                 )
 
@@ -768,18 +778,20 @@ async def apply_suggested_lineup(team_id: int, user=Depends(get_current_user)):
 
     async with pool.acquire() as conn:
         async with conn.transaction():
-            lineup = await build_lineup_recommendation(conn, team_id)
+            lineup = await build_lineup_recommendation(conn, team_id, include_commentary=False)
             assignments = {player["player_id"]: player["recommended_slot"] for player in lineup["lineup"] if player.get("recommended_slot")}
             if len(assignments) != len(DRAFT_SLOTS):
                 raise HTTPException(status_code=400, detail="La alineacion sugerida no pudo asignar todos los slots del roster")
 
             for player_id, slot in assignments.items():
                 await conn.execute(
-                    "UPDATE roster_players SET roster_slot = $3::roster_slot_enum WHERE fantasy_team_id = $1 AND player_id = $2",
+                    """UPDATE roster_players
+                       SET roster_slot = $3::roster_slot_enum
+                       WHERE fantasy_team_id = $1 AND player_id = $2 AND released_at IS NULL""",
                     team_id, player_id, slot,
                 )
 
-            refreshed = await build_lineup_recommendation(conn, team_id)
+            refreshed = await build_lineup_recommendation(conn, team_id, include_commentary=False)
 
     starter_count = sum(1 for player in refreshed["lineup"] if player["recommended_role"] == "starter")
     bench_count = sum(1 for player in refreshed["lineup"] if player["recommended_role"] == "bench")
@@ -807,10 +819,15 @@ async def drop_player(team_id: int, player_id: int, user=Depends(get_current_use
     async with pool.acquire() as conn:
         async with conn.transaction():
             deleted = await conn.execute(
-                "DELETE FROM roster_players WHERE fantasy_team_id = $1 AND player_id = $2",
+                """UPDATE roster_players
+                   SET is_active = FALSE,
+                       released_at = NOW()
+                   WHERE fantasy_team_id = $1
+                     AND player_id = $2
+                     AND released_at IS NULL""",
                 team_id, player_id,
             )
-            if deleted == "DELETE 0":
+            if deleted == "UPDATE 0":
                 raise HTTPException(status_code=404, detail="Jugador no esta en tu roster")
 
             await conn.execute(

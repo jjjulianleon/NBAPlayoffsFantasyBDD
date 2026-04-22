@@ -4,6 +4,27 @@ export function cn(...classes) {
   return classes.filter(Boolean).join(' ');
 }
 
+function parseDisplayDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === 'string') {
+    const dateOnlyMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (dateOnlyMatch) {
+      const [, year, month, day] = dateOnlyMatch;
+      return new Date(Number(year), Number(month) - 1, Number(day));
+    }
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 export function formatNumber(value, digits = 1) {
   const numeric = Number(value);
   if (Number.isNaN(numeric)) {
@@ -37,8 +58,8 @@ export function formatDateLabel(value, options = {}) {
     return 'Por definir';
   }
 
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const date = parseDisplayDate(value);
+  if (!date) {
     return String(value);
   }
 
@@ -54,16 +75,16 @@ export function formatDateTime(value) {
     return 'Por definir';
   }
 
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const date = parseDisplayDate(value);
+  if (!date) {
     return String(value);
   }
 
+  const isDateOnly = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value);
   return new Intl.DateTimeFormat('es-ES', {
     month: 'short',
     day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
+    ...(isDateOnly ? {} : { hour: 'numeric', minute: '2-digit' }),
   }).format(date);
 }
 
@@ -72,11 +93,12 @@ export function formatRelativeTime(value) {
     return null;
   }
 
-  const timestamp = new Date(value).getTime();
-  if (Number.isNaN(timestamp)) {
+  const date = parseDisplayDate(value);
+  if (!date) {
     return null;
   }
 
+  const timestamp = date.getTime();
   const elapsed = Date.now() - timestamp;
   if (elapsed < 0) {
     return 'ahora';
@@ -104,8 +126,8 @@ export function formatLongDate(value) {
     return 'Sin fecha';
   }
 
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const date = parseDisplayDate(value);
+  if (!date) {
     return String(value);
   }
 
@@ -204,9 +226,9 @@ export function normalizeScoutingText(report) {
 export const ROSTER_SLOTS = ['G1', 'G2', 'F1', 'F2', 'C', 'UTIL', 'BN1', 'BN2'];
 
 export function getCurrentPlayoffPhase(now = new Date()) {
-  const date = now instanceof Date ? now : new Date(now);
+  const date = now instanceof Date ? now : parseDisplayDate(now);
 
-  if (Number.isNaN(date.getTime())) {
+  if (!date || Number.isNaN(date.getTime())) {
     return {
       label: 'Playoffs NBA',
       sublabel: 'Calendario 2026',

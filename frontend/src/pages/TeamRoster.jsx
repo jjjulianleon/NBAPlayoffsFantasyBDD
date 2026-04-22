@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRightLeft, BrainCircuit, Plus, Trash2 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../auth-context';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
 import Modal from '../components/Modal';
 import PlayerAvatar from '../components/PlayerAvatar';
+import SelectMenu from '../components/SelectMenu';
 import Skeleton from '../components/Skeleton';
 import { useToast } from '../components/Toast';
 import { formatDateTime, formatInteger, formatNumber, formatRelativeTime, getInitials, ROSTER_SLOTS } from '../lib/utils';
@@ -29,7 +30,7 @@ export default function TeamRoster() {
   const [moveLoading, setMoveLoading] = useState(false);
   const [applyLoading, setApplyLoading] = useState(false);
 
-  async function loadRoster() {
+  const loadRoster = useCallback(async () => {
     setLoading(true);
     try {
       const [rosterResult, transactionResult] = await Promise.all([
@@ -41,16 +42,16 @@ export default function TeamRoster() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [id]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       loadRoster().catch(() => setLoading(false));
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, [id]);
+  }, [id, loadRoster]);
 
-  async function loadLineup() {
+  const loadLineup = useCallback(async () => {
     setLineupLoading(true);
     try {
       const result = await api.lineup(id);
@@ -60,15 +61,32 @@ export default function TeamRoster() {
     } finally {
       setLineupLoading(false);
     }
-  }
+  }, [id, pushToast]);
 
   useEffect(() => {
     if (roster.length > 0) {
-      loadLineup().catch(() => {});
+      const timeout = window.setTimeout(() => {
+        loadLineup().catch(() => {});
+      }, 0);
+      return () => window.clearTimeout(timeout);
     }
-  }, [roster.length, id]);
+    return undefined;
+  }, [roster.length, loadLineup]);
 
   const rosterMap = useMemo(() => Object.fromEntries(roster.map((item) => [item.roster_slot, item])), [roster]);
+  const moveSlotOptions = useMemo(
+    () => ROSTER_SLOTS.map((slot) => {
+      const occupant = rosterMap[slot];
+      const samePlayer = occupant?.player_id === movePlayer?.player_id;
+
+      return {
+        value: slot,
+        label: slot,
+        description: samePlayer ? 'Slot actual' : occupant ? `Swap con ${occupant.player_name}` : 'Slot libre',
+      };
+    }),
+    [movePlayer?.player_id, rosterMap],
+  );
   const isOwner = roster[0]?.username === user?.username;
   const totalPoints = roster.reduce((sum, item) => sum + Number(item.season_ppg || 0), 0);
 
@@ -284,6 +302,17 @@ export default function TeamRoster() {
                 </div>
               </div>
             ) : null}
+            {lineup.decision_commentary ? (
+              <div className="rounded-lg border border-[--color-border] bg-[--color-bg] px-4 py-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[--color-text-muted]">Por que esta prediccion</p>
+                  <Badge tone={lineup.decision_commentary_generated_by && lineup.decision_commentary_generated_by !== 'local-heuristic-v1' ? 'green' : 'gray'}>
+                    {lineup.decision_commentary_generated_by && lineup.decision_commentary_generated_by !== 'local-heuristic-v1' ? 'OpenAI' : 'Local'}
+                  </Badge>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-[--color-text-muted]">{lineup.decision_commentary}</p>
+              </div>
+            ) : null}
             {lineup.lineup.map((p) => {
               const tone = p.recommended_role === 'starter' ? 'green' : 'gray';
               const label = p.recommended_role === 'starter' ? 'Titular' : 'Banca';
@@ -434,17 +463,13 @@ export default function TeamRoster() {
             </p>
             <div className="space-y-2">
               <label className="field-label" htmlFor="move-slot">Slot destino</label>
-              <select id="move-slot" className="field w-full" value={moveTargetSlot} onChange={(event) => setMoveTargetSlot(event.target.value)}>
-                {ROSTER_SLOTS.map((slot) => {
-                  const occupant = rosterMap[slot];
-                  const samePlayer = occupant?.player_id === movePlayer.player_id;
-                  return (
-                    <option key={slot} value={slot}>
-                      {slot}{samePlayer ? ' · actual' : occupant ? ` · swap con ${occupant.player_name}` : ' · libre'}
-                    </option>
-                  );
-                })}
-              </select>
+              <SelectMenu
+                id="move-slot"
+                label="Slot destino"
+                value={moveTargetSlot}
+                options={moveSlotOptions}
+                onChange={setMoveTargetSlot}
+              />
             </div>
             <button type="button" className="button-primary w-full" onClick={moveRosterPlayer} disabled={moveLoading}>
               <ArrowRightLeft className="h-4 w-4" />

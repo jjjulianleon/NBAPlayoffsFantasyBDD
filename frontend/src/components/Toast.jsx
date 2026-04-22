@@ -56,14 +56,17 @@ function ToastItem({ toast, onDismiss }) {
   }, [onDismiss, toast.id]);
 
   return (
-    <div className="pointer-events-auto animate-toast-in rounded-lg border border-[--color-border-strong] bg-[--color-bg-elev] p-4 shadow-2xl">
+    <div
+      className="pointer-events-auto animate-toast-in rounded-[18px] border border-[--color-border-strong] p-4 shadow-[0_20px_45px_rgba(0,0,0,0.38)] backdrop-blur-xl"
+      style={{ background: 'linear-gradient(180deg, rgba(24,24,28,0.94) 0%, rgba(14,14,17,0.96) 100%)' }}
+    >
       <div className="flex items-start gap-3">
-        <div className="mt-0.5 rounded-full bg-[--color-bg-elev-2] p-2 text-[--color-accent]">
+        <div className="mt-0.5 rounded-full border border-white/8 bg-[rgba(255,255,255,0.04)] p-2 text-[--color-accent] backdrop-blur-md">
           <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-body text-sm font-semibold text-[--color-text]">{toast.title}</p>
-          {toast.message ? <p className="mt-1 text-sm text-[--color-text-muted]">{toast.message}</p> : null}
+          <p className="font-body text-sm font-semibold text-[--color-text] [text-shadow:0_1px_0_rgba(0,0,0,0.2)]">{toast.title}</p>
+          {toast.message ? <p className="mt-1 text-sm leading-6 text-white/78">{toast.message}</p> : null}
         </div>
         <button type="button" className="icon-button h-8 w-8" onClick={() => onDismiss(toast.id)} aria-label="Cerrar notificacion">
           <X className="h-4 w-4" />

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Copy, Rocket, Settings2, Trophy, Users } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../auth-context';
 import Badge from '../components/Badge';
 import EmptyState from '../components/EmptyState';
 import Modal from '../components/Modal';
@@ -35,7 +35,7 @@ export default function LeagueDetail() {
   const [reseedLoading, setReseedLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  async function loadLeague() {
+  const loadLeague = useCallback(async () => {
     const [leagueResponse, standings, draftResponse] = await Promise.all([
       api.league(id),
       api.leagueLeaderboard(id).catch(() => []),
@@ -48,14 +48,14 @@ export default function LeagueDetail() {
       league_name: leagueResponse.league_name || '',
       max_teams: Number(leagueResponse.max_teams || 8),
     });
-  }
+  }, [id]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       loadLeague().catch(() => {});
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, [id]);
+  }, [id, loadLeague]);
 
   const isCommissioner = league?.created_by === user?.user_id;
   const isMember = league?.members?.some((member) => member.user_id === user?.user_id);
