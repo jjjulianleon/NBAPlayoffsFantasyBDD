@@ -11,12 +11,13 @@ Uso:
     python data/seed_kaggle.py
 """
 import logging
+import os
 import psycopg
 import pandas as pd
 import time
 from datetime import datetime, timedelta
 
-CONN = "host=localhost dbname=playoff_hoops user=playoff password=playoff_dev"
+CONN = os.getenv("DATABASE_URL", "host=localhost dbname=playoff_hoops user=playoff password=playoff_dev")
 KAGGLE_DIR = "data/kaggle"
 # Cargar todo lo de las dos temporadas: arrancan en octubre
 CUTOFF_DATE = "2024-10-01"

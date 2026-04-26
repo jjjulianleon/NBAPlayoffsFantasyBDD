@@ -8,7 +8,7 @@ import psycopg
 import os
 from datetime import date, timedelta
 
-CONN = "host=localhost dbname=playoff_hoops user=playoff password=playoff_dev"
+CONN = os.getenv("DATABASE_URL", "host=localhost dbname=playoff_hoops user=playoff password=playoff_dev")
 
 NBA_TEAMS = [
     (1610612760, 'OKC', 'Oklahoma City Thunder', 'West', 1),
@@ -99,8 +99,8 @@ with psycopg.connect(CONN, autocommit=True) as conn:
         user_id = cur.fetchone()[0]
 
         print(f"→ Creando liga vía SP transaccional (user={user_id})...")
-        cur.execute("CALL sp_create_league(%s, %s, %s, NULL)",
-                    ("Liga de Prueba", user_id, 4))
+        cur.execute("CALL sp_create_league(%s, %s, %s, %s::scoring_type_enum, NULL)",
+                    ("Liga de Prueba", user_id, 4, "points"))
         league_id = cur.fetchone()[0]
 
         cur.execute(

@@ -4,6 +4,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 .env
+!.env.example
 *.log
 
 # Node.js
@@ -18,9 +19,7 @@ Thumbs.db
 # Project specific
 data/*.log
 data/*.stdout
+data/*.pid
 data/kaggle/
-https:/
-.codex
-.codex/
-AGENTS.md
 data/backups/
+data/seed_dump.sql

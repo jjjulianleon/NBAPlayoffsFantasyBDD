@@ -1,25 +1,37 @@
 #!/usr/bin/env bash
 # Refresh diario de datos NBA desde Kaggle.
 # Diseñado para correr tanto manual como desde cron.
+# Funciona tanto en local como dentro de Docker.
 #
 # Solo descarga si el dataset cambió (sin --force).
 # Kaggle compara la versión local vs remota y salta si ya es la última.
 
 set -euo pipefail
 
-PROJECT_DIR="/home/jjulianleon/University/8vo Semestre/Bases de Datos/ProyectoFinal/playoff-hoops"
-VENV="$PROJECT_DIR/venv"
+# Auto-detect project root from this script's location
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Inside Docker, use system python/kaggle; locally, use venv
+if [ -d "$PROJECT_DIR/venv" ]; then
+  PYTHON="$PROJECT_DIR/venv/bin/python"
+  KAGGLE="$PROJECT_DIR/venv/bin/kaggle"
+else
+  PYTHON="$(command -v python3 || command -v python)"
+  KAGGLE="$(command -v kaggle || echo "$PROJECT_DIR/venv/bin/kaggle")"
+fi
+
 KAGGLE_DIR="$PROJECT_DIR/data/kaggle"
-KAGGLE="$VENV/bin/kaggle"
-PYTHON="$VENV/bin/python"
 LOG_FILE="$PROJECT_DIR/data/refresh.log"
 
-# Cron no carga .bashrc — poner PATH, HOME y KAGGLE_CONFIG_DIR explícitos
-export PATH="$VENV/bin:/usr/local/bin:/usr/bin"
-export HOME="/home/jjulianleon"
-export KAGGLE_CONFIG_DIR="$HOME/.kaggle"
+# Cron no carga .bashrc — poner PATH y KAGGLE_CONFIG_DIR explícitos
+export PATH="$(dirname "$PYTHON"):${PATH}"
+export KAGGLE_CONFIG_DIR="${KAGGLE_CONFIG_DIR:-$HOME/.kaggle}"
 
 cd "$PROJECT_DIR"
+
+# Database connection: prefer DATABASE_URL (Docker sets this), fallback to localhost
+DB_URL="${DATABASE_URL:-postgresql://playoff:playoff_dev@localhost:5432/playoff_hoops}"
 
 echo "=== [$(date -Iseconds)] Inicio refresh NBA ===" | tee -a "$LOG_FILE"
 
@@ -41,7 +53,7 @@ echo "→ Ejecutando seed_kaggle.py (incremental)..." | tee -a "$LOG_FILE"
 
 # 3. Recalcular season averages (todas las temporadas activas)
 echo "→ Recalculando season_ppg/rpg/apg..." | tee -a "$LOG_FILE"
-PGPASSWORD=playoff_dev psql -h localhost -U playoff -d playoff_hoops <<'SQL' 2>&1 | tee -a "$LOG_FILE"
+psql "$DB_URL" <<'SQL' 2>&1 | tee -a "$LOG_FILE"
 UPDATE players p SET
   season_ppg = COALESCE(sub.ppg, 0),
   season_rpg = COALESCE(sub.rpg, 0),
@@ -61,7 +73,7 @@ SQL
 
 # 4. Derivar equipos eliminados del bracket de playoffs
 echo "→ Actualizando is_eliminated desde bracket..." | tee -a "$LOG_FILE"
-PGPASSWORD=playoff_dev psql -h localhost -U playoff -d playoff_hoops <<'SQL' 2>&1 | tee -a "$LOG_FILE"
+psql "$DB_URL" <<'SQL' 2>&1 | tee -a "$LOG_FILE"
 -- Derived elimination: a team is eliminated if they lost 4 games in a series
 -- against the same opponent in the same playoff round.
 WITH game_losers AS (

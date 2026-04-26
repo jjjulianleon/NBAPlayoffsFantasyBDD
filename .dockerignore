@@ -1,0 +1,18 @@
+# No copiar al contexto de build de Docker
+.git
+venv/
+__pycache__/
+*.py[cod]
+node_modules/
+dist/
+*.log
+*.stdout
+*.pid
+data/kaggle/
+data/backups/
+docs/
+ml/
+.codex/
+.env
+frontend/node_modules/
+frontend/dist/

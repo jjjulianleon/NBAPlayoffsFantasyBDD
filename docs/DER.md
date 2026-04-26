@@ -26,6 +26,16 @@ erDiagram
         SMALLINT eliminated_round
     }
 
+    team_elimination_log {
+        INT log_id PK
+        INT team_id FK
+        BOOLEAN previous_is_eliminated
+        BOOLEAN new_is_eliminated
+        SMALLINT previous_round
+        SMALLINT new_round
+        TIMESTAMP changed_at
+    }
+
     players {
         INT player_id PK
         VARCHAR first_name
@@ -110,6 +120,7 @@ erDiagram
         BOOLEAN is_active
         ENUM acquired_via
         TIMESTAMP acquired_at
+        TIMESTAMP released_at
     }
 
     draft_picks {
@@ -160,6 +171,7 @@ erDiagram
     nba_teams ||--o{ players : "tiene"
     nba_teams ||--o{ games : "home_team"
     nba_teams ||--o{ games : "away_team"
+    nba_teams ||--o{ team_elimination_log : "auditoria"
     players ||--o{ player_game_stats : "registra"
     games ||--o{ player_game_stats : "contiene"
 
@@ -196,6 +208,7 @@ erDiagram
 | Relacion | Cardinalidad | Descripcion |
 |----------|-------------|-------------|
 | nba_teams → players | 1:N | Un equipo tiene muchos jugadores |
+| nba_teams → team_elimination_log | 1:N | Un equipo tiene un log de cambios de eliminación |
 | nba_teams → games (home) | 1:N | Un equipo juega muchos partidos como local |
 | nba_teams → games (away) | 1:N | Un equipo juega muchos partidos como visitante |
 | players ↔ games | M:N | Via player_game_stats (15 attrs) |

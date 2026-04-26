@@ -4,7 +4,7 @@ email-validator==2.3.0
 fastapi==0.136.0
 openai==2.6.1
 pandas==2.3.3
-kaggle==1.7.4.5
+kaggle==1.6.17
 psycopg[binary]==3.2.12
 pydantic==2.13.2
 pydantic_core==2.46.2

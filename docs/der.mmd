@@ -19,6 +19,16 @@ erDiagram
         SMALLINT eliminated_round
     }
 
+    team_elimination_log {
+        INT log_id PK
+        INT team_id FK
+        BOOLEAN previous_is_eliminated
+        BOOLEAN new_is_eliminated
+        SMALLINT previous_round
+        SMALLINT new_round
+        TIMESTAMP changed_at
+    }
+
     players {
         INT player_id PK
         VARCHAR first_name
@@ -103,6 +113,7 @@ erDiagram
         BOOLEAN is_active
         ENUM acquired_via
         TIMESTAMP acquired_at
+        TIMESTAMP released_at
     }
 
     draft_picks {
@@ -150,6 +161,7 @@ erDiagram
     nba_teams ||--o{ players : "tiene"
     nba_teams ||--o{ games : "home_team"
     nba_teams ||--o{ games : "away_team"
+    nba_teams ||--o{ team_elimination_log : "auditoria"
     players ||--o{ player_game_stats : "registra"
     games ||--o{ player_game_stats : "contiene"
     users ||--o{ leagues : "crea"

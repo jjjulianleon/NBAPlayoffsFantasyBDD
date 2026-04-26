@@ -1,0 +1,82 @@
+# =============================================================
+# Playoff Hoops — Docker Compose
+# Universidad San Francisco de Quito — CMP 4002 Bases de Datos
+#
+# Uso:
+#   cp .env.example .env        # ajustar si es necesario
+#   docker compose up -d        # levantar todo
+#   docker compose logs -f      # ver logs
+#   docker compose down         # apagar
+#   docker compose down -v      # apagar + borrar datos de BD
+# =============================================================
+
+services:
+  # ─────────────────────────────────────────────────────────────
+  # PostgreSQL 16 — Base de datos
+  # ─────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: playoff-hoops-db
+    environment:
+      POSTGRES_USER: playoff
+      POSTGRES_PASSWORD: playoff_dev
+      POSTGRES_DB: playoff_hoops
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+      - ./data:/sql-data:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U playoff -d playoff_hoops" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ─────────────────────────────────────────────────────────────
+  # FastAPI Backend (Python 3.12)
+  # ─────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: playoff-hoops-api
+    environment:
+      DATABASE_URL: postgresql://playoff:playoff_dev@db:5432/playoff_hoops
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-change-in-prod}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_LINEUP_MODEL: ${OPENAI_LINEUP_MODEL:-gpt-5.1}
+      KAGGLE_CONFIG_DIR: /root/.kaggle
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app/backend
+      - ./data:/app/data
+      - ./scripts:/app/scripts
+      - ~/.kaggle:/root/.kaggle:ro
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # Vite + React Frontend (Node 22)
+  # ─────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+    container_name: playoff-hoops-ui
+    environment:
+      VITE_API_URL: http://backend:8000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+      - ./frontend/index.html:/app/index.html
+    restart: unless-stopped
+
+volumes:
+  pgdata:
