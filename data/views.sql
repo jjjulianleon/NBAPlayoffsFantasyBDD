@@ -33,7 +33,9 @@ LEFT JOIN roster_players rp ON ft.fantasy_team_id = rp.fantasy_team_id
 GROUP BY ft.fantasy_team_id, ft.team_name, u.username, l.league_id, l.league_name, ft.total_points;
 
 -- =============================================================
--- VIEW 2: Performance agregada por jugador (toda la temporada)
+-- VIEW 2: Performance agregada por jugador (temporada actual)
+-- Filtra solo partidos del año en curso: playoffs son abr-jun,
+-- por lo que EXTRACT(YEAR FROM game_date) identifica la temporada.
 -- =============================================================
 CREATE VIEW v_player_performance AS
 SELECT
@@ -52,7 +54,13 @@ SELECT
     ROUND(SUM(pgs.fantasy_points)::numeric, 1) AS total_fantasy_pts
 FROM players p
 JOIN nba_teams t ON p.team_id = t.team_id
-LEFT JOIN player_game_stats pgs ON p.player_id = pgs.player_id
+LEFT JOIN (
+    SELECT pgs.*
+    FROM player_game_stats pgs
+    JOIN games g ON pgs.game_id = g.game_id
+    WHERE EXTRACT(YEAR  FROM g.game_date) = EXTRACT(YEAR FROM CURRENT_DATE)
+      AND EXTRACT(MONTH FROM g.game_date) BETWEEN 4 AND 7   -- playoffs: abr–jul
+) pgs ON p.player_id = pgs.player_id
 GROUP BY p.player_id, p.first_name, p.last_name, p.position, t.abbreviation, t.is_eliminated;
 
 -- =============================================================
