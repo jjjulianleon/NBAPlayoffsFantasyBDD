@@ -97,7 +97,7 @@ export default function Navbar() {
                   <span className="hidden pr-3 font-body text-sm font-semibold text-[--color-text] 2xl:block">{user.username}</span>
                 </button>
                 {menuOpen ? (
-                  <div className="absolute right-0 mt-2 w-56 rounded-lg border border-[--color-border] bg-[--color-bg-elev] p-2 shadow-2xl">
+                  <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-[--color-border-strong] bg-[#141417] p-2 shadow-[0_20px_40px_rgba(0,0,0,0.6)]">
                     <Link to="/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-[--color-text-muted] hover:bg-[--color-bg-elev-2] hover:text-[--color-text]">
                       <User2 className="h-4 w-4" />
                       Perfil

@@ -9,8 +9,8 @@ DESCRIPCION
 Aplicacion fantasy basketball especializada en playoffs NBA.
 Permite crear ligas, draftear jugadores reales, ver estadisticas en
 tiempo real y generar reportes con IA. Datos reales de Kaggle
-(2023-24, 2024-25, 2025-26) — 791 jugadores, 3.794 partidos,
-89.053 box scores.
+(2023-24, 2024-25, 2025-26) — 791 jugadores, 3.806 partidos,
+89.388 box scores.
 
 
 REQUISITOS DEL SISTEMA
@@ -103,32 +103,39 @@ REQUISITOS DEL SISTEMA
 
 
 ================================================================
-  COMPONENTES DE BASE DE DATOS (segun rubrica CMP 4002)
+  COMPONENTES DE BASE DE DATOS (segun rubrica)
 ================================================================
 
-  TABLAS (14 total: 11 entidades + 3 junctions M:M)
-  --------------------------------------------------
+  TABLAS (14 total: 10 entidades fuertes + 1 debil + 3 junctions M:M)
+  ------------------------------------------------------------------
+  La rubrica pide "8 a 10 tablas sin contar M:N". El proyecto cumple
+  con 10 entidades fuertes en ese rango; team_elimination_log es una
+  bitacora debil subordinada a nba_teams (no entidad independiente),
+  y las tres tablas asociativas resuelven las relaciones M:N.
+
   Dominio NBA real:
     1. nba_teams            30 equipos NBA con playoff_seed e is_eliminated
     2. players              791 jugadores con posicion y promedios
-    3. games                3.794 partidos con playoff_round (1-4)
-    4. team_elimination_log Auditoria de eliminaciones (trigger)
+    3. games                3.806 partidos con playoff_round (1-4)
 
   Dominio fantasy:
-    5. users                Autenticacion con bcrypt
-    6. leagues              Ligas con scoring_type ENUM
-    7. fantasy_teams        Equipos fantasy con total_points
-    8. draft_picks          Historial de draft
-    9. transactions         Log de movimientos de roster
+    4. users                Autenticacion con bcrypt
+    5. leagues              Ligas con scoring_type ENUM
+    6. fantasy_teams        Equipos fantasy con total_points
+    7. draft_picks          Historial de draft (orden de seleccion)
+    8. transactions         Log de movimientos de roster
 
-  Dominio IA:
-   10. predictions          Predicciones del modelo XGBoost
-   11. scouting_reports     Textos generados por IA (cache)
+  Dominio IA / analitica:
+    9. predictions          Predicciones de modelo heuristico (heuristic-v1)
+   10. scouting_reports     Textos generados por gpt-4o-mini (cache diario)
 
-  Junctions M:M (con atributos propios):
-   12. player_game_stats    players <-> games (15 atributos estadisticos)
-   13. league_members       users <-> leagues (role ENUM, joined_at)
-   14. roster_players       fantasy_teams <-> players (slot, active, acquired_via)
+  Tabla debil (auditoria, dependiente de nba_teams):
+       team_elimination_log Bitacora de cambios sobre is_eliminated
+
+  Junctions M:N (con atributos propios):
+       player_game_stats    players <-> games (15 atributos estadisticos)
+       league_members       users <-> leagues (role ENUM, joined_at)
+       roster_players       fantasy_teams <-> players (slot, active, acquired_via)
 
   RELACIONES
   ----------
@@ -137,11 +144,12 @@ REQUISITOS DEL SISTEMA
     - users <-> leagues          via league_members
     - fantasy_teams <-> players  via roster_players
 
-  7+ relaciones uno-a-muchos:
-    - nba_teams -> players, games, team_elimination_log
-    - users -> leagues, fantasy_teams
+  8 relaciones uno-a-muchos:
+    - nba_teams -> players, games (home/away), team_elimination_log
+    - users -> predictions
     - leagues -> fantasy_teams, draft_picks
-    - players -> predictions, scouting_reports
+    - fantasy_teams -> transactions
+    - players -> scouting_reports
 
   ENUMS (9 tipos)
   ----------------
@@ -235,12 +243,6 @@ REQUISITOS DEL SISTEMA
   ├── scripts/
   │   ├── refresh_nba.sh        Job diario de actualizacion
   │   └── run_refresh.py        Orquestador del refresh
-  ├── docs/
-  │   ├── DER.png               Diagrama Entidad-Relacion (Mermaid)
-  │   ├── DER.pdf               DER en formato PDF
-  │   ├── DER.md                Documentacion del DER
-  │   ├── der.mmd               Fuente Mermaid del DER
-  │   └── der_tablas.pdf/.tex   Tablas del DER en LaTeX
   ├── docker/
   │   └── init-db.sh            Script de inicializacion de BD
   ├── docker-compose.yml        Orquestacion de 3 servicios
@@ -298,14 +300,18 @@ PUERTOS Y URLs
 
 CRUD DESDE EL FRONTEND (requisito rubrica)
 -------------------------------------------
-  | Pantalla      | INSERT                | UPDATE              | DELETE              |
-  |---------------|-----------------------|---------------------|---------------------|
-  | Register      | sp_register_user      | —                   | —                   |
-  | Login         | —                     | UPDATE last_login   | —                   |
-  | Profile       | —                     | UPDATE display_name | —                   |
-  | Leagues       | sp_create_league      | UPDATE league_name  | DELETE league        |
-  | Draft         | sp_make_draft_pick    | —                   | —                   |
-  | TeamRoster    | free agent add        | UPDATE roster slot  | soft-delete roster  |
+  | Pantalla       | INSERT                  | UPDATE                  | DELETE              |
+  |----------------|-------------------------|-------------------------|---------------------|
+  | Register       | sp_register_user        | —                       | —                   |
+  | Login          | —                       | UPDATE last_login       | —                   |
+  | Profile        | —                       | UPDATE display_name     | —                   |
+  | Leagues        | sp_create_league        | UPDATE league_name      | DELETE league       |
+  | LeagueDetail   | INSERT league_members   | UPDATE league settings  | sp_leave_league     |
+  | Draft          | sp_make_draft_pick      | UPDATE draft_status     | —                   |
+  | TeamRoster     | sp_free_agent_swap (add)| UPDATE roster slot      | sp_drop_roster_player|
+  | PlayerDetail   | INSERT scouting_reports | —                       | —                   |
+  | Games          | INSERT predictions      | UPDATE prediction       | —                   |
+  | Profile/Admin  | trigger refresh manual  | UPDATE refresh_state    | —                   |
 
 
 REPORTES SOBRE VISTAS (requisito rubrica)

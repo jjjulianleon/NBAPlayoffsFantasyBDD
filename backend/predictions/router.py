@@ -9,8 +9,12 @@ router = APIRouter(prefix="/api/predictions", tags=["predictions"])
 async def prediction_accuracy(limit: int = Query(25, ge=1, le=100)):
     pool = await get_pool()
     rows = await pool.fetch("""
-        SELECT * FROM v_prediction_accuracy
-        ORDER BY mae ASC
+        SELECT va.*
+        FROM v_prediction_accuracy va
+        JOIN players p ON va.player_id = p.player_id
+        JOIN nba_teams t ON p.team_id = t.team_id
+        WHERE t.playoff_seed IS NOT NULL
+        ORDER BY va.mae ASC
         LIMIT $1
     """, limit)
     return [dict(r) for r in rows]

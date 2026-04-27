@@ -85,7 +85,7 @@ WITH game_losers AS (
     WHERE g.status = 'final'
       AND g.playoff_round >= 1
       AND g.home_score <> g.away_score
-      AND g.game_date >= '2025-04-01'
+      AND g.game_date >= '2026-04-18'  -- inicio del round 1 de los playoffs 2025-26
 ),
 series_losses AS (
     SELECT loser_id, playoff_round, winner_id, COUNT(*) AS losses
