@@ -1,0 +1,44 @@
+
+   docker compose down
+
+   docker compose up -d --build
+
+   FRONTEND: 
+
+   http://localhost:5173
+   
+
+   BACKEND API: 
+   http://localhost:8000/api/health
+   
+   SWAGGER (Documentación de la API):
+   http://localhost:8000/docs
+
+   DBEAVER:
+   Host: localhost
+   Port: 5433
+   Database: playoff_hoops
+   Username: playoff
+   Password: playoff_dev
+
+1. Abre DBeaver.
+2. Arriba a la izquierda, haz clic en el icono de "Nueva Conexión" 
+   (el enchufe con un "+").
+3. Selecciona "PostgreSQL" y dale a "Siguiente".
+4. Llena exactamente estos datos:
+   - Host:       localhost
+   - Port:       5433
+   - Database:   playoff_hoops
+   - Username:   playoff
+   - Password:   playoff_dev
+
+5. Haz clic en "Test Connection" (Prueba de conexión) para confirmar.
+   - Debería salir un mensaje verde de "Connected".
+6. Dale a "Finalizar" (Finish).
+
+¿Qué mostrar en DBeaver durante la demo?
+- Despliega: playoff_hoops -> Schemas -> public -> Tables (Ahí están tus 14 tablas).
+- Despliega: Views (Ahí están tus 6 vistas analíticas).
+- Abre un "SQL Editor" (F3) y ejecuta:
+  SELECT * FROM players LIMIT 100;
+  SELECT * FROM v_league_leaderboard;

@@ -1,9 +1,9 @@
 {
   "status": "success",
   "trigger": "manual",
-  "started_at": "2026-04-26T19:20:38.101745+00:00",
-  "finished_at": "2026-04-26T19:26:25.184915+00:00",
-  "duration_seconds": 347.1,
+  "started_at": "2026-04-28T07:24:41.297743+00:00",
+  "finished_at": "2026-04-28T07:30:16.355446+00:00",
+  "duration_seconds": 335.1,
   "last_error": null,
   "runner_pid": null
 }

@@ -12,7 +12,10 @@ export default function DraftClock({ startedAt }) {
     if (!startedAt) {
       return 0;
     }
-    return Date.now() - new Date(startedAt).getTime();
+    // Handle 'Z' to properly match UTC if the database sends naive timestamps 
+    // that are actually UTC under the hood, or simply parse correctly
+    const parseDate = (d) => new Date(d.endsWith('Z') ? d : d + 'Z').getTime();
+    return Date.now() - parseDate(startedAt);
   });
 
   useEffect(() => {
@@ -20,8 +23,13 @@ export default function DraftClock({ startedAt }) {
       return undefined;
     }
 
+    const parseDate = (d) => new Date(d.endsWith('Z') ? d : d + 'Z').getTime();
+    
+    // Set initial elapsed time
+    setElapsed(Date.now() - parseDate(startedAt));
+
     const interval = window.setInterval(() => {
-      setElapsed(Date.now() - new Date(startedAt).getTime());
+      setElapsed(Date.now() - parseDate(startedAt));
     }, 1000);
 
     return () => window.clearInterval(interval);

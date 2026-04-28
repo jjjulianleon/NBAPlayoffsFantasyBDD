@@ -202,7 +202,7 @@ export default function LeagueDetail() {
           <div className="mt-8 flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.28em] text-white/55">Comisionado: @{league.creator_name}</p>
-              <h1 className="mt-4 font-display text-5xl uppercase tracking-tight text-white md:text-7xl">{league.league_name}</h1>
+              <h1 className="mt-4 font-display text-5xl uppercase tracking-tight text-white md:text-7xl">{league.league_name} <span className="opacity-50">({league.league_id})</span></h1>
               <div className="mt-5 flex flex-wrap gap-2">
                 <Badge tone={statusTone}>{league.draft_status === 'completed' ? 'completado' : league.draft_status === 'in_progress' ? 'en curso' : 'pendiente'}</Badge>
                 <Badge tone="gray">{memberCount}/{league.max_teams} miembros</Badge>
