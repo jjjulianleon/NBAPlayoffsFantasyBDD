@@ -16,6 +16,13 @@ _random = SystemRandom()
 
 # ---------- Schemas ----------
 
+class LineupSlotAssignment(BaseModel):
+    player_id: int
+    slot: str
+
+class ApplyLineupBody(BaseModel):
+    assignments: list[LineupSlotAssignment] | None = None
+
 class CreateLeague(BaseModel):
     league_name: str
     max_teams: int = 8
@@ -753,7 +760,7 @@ async def move_roster_player(team_id: int, body: MoveRosterPlayer, user=Depends(
 
 
 @router.post("/teams/{team_id}/roster/apply-lineup")
-async def apply_suggested_lineup(team_id: int, user=Depends(get_current_user)):
+async def apply_suggested_lineup(team_id: int, body: ApplyLineupBody | None = None, user=Depends(get_current_user)):
     pool = await get_pool()
     team = await pool.fetchrow(
         "SELECT user_id FROM fantasy_teams WHERE fantasy_team_id = $1",
@@ -764,8 +771,21 @@ async def apply_suggested_lineup(team_id: int, user=Depends(get_current_user)):
 
     async with pool.acquire() as conn:
         async with conn.transaction():
-            lineup = await build_lineup_recommendation(conn, team_id, include_commentary=False)
-            assignments = {player["player_id"]: player["recommended_slot"] for player in lineup["lineup"] if player.get("recommended_slot")}
+            # Use the assignments the user already saw; fall back to a fresh calculation
+            # only when the client doesn't send them (backward-compatible).
+            if body and body.assignments:
+                assignments = {a.player_id: a.slot for a in body.assignments}
+                invalid = [s for s in assignments.values() if s not in DRAFT_SLOTS]
+                if invalid:
+                    raise HTTPException(status_code=400, detail=f"Slots invalidos: {invalid}")
+            else:
+                lineup = await build_lineup_recommendation(conn, team_id, include_commentary=False)
+                assignments = {
+                    player["player_id"]: player["recommended_slot"]
+                    for player in lineup["lineup"]
+                    if player.get("recommended_slot")
+                }
+
             if len(assignments) != len(DRAFT_SLOTS):
                 raise HTTPException(status_code=400, detail="La alineacion sugerida no pudo asignar todos los slots del roster")
 
@@ -777,19 +797,14 @@ async def apply_suggested_lineup(team_id: int, user=Depends(get_current_user)):
                     team_id, player_id, slot,
                 )
 
-            refreshed = await build_lineup_recommendation(conn, team_id, include_commentary=False)
-
-    starter_count = sum(1 for player in refreshed["lineup"] if player["recommended_role"] == "starter")
-    bench_count = sum(1 for player in refreshed["lineup"] if player["recommended_role"] == "bench")
-    unavailable_count = sum(1 for player in refreshed["lineup"] if player.get("availability") != "active")
+    starter_count = sum(1 for slot in assignments.values() if slot in STARTER_SLOTS)
+    bench_count = sum(1 for slot in assignments.values() if slot in BENCH_SLOTS)
     return {
         "message": "Alineacion aplicada",
         "starter_slots": STARTER_SLOTS,
         "bench_slots": BENCH_SLOTS,
         "starters": starter_count,
         "bench": bench_count,
-        "unavailable": unavailable_count,
-        "lineup": refreshed["lineup"],
     }
 
 

@@ -99,6 +99,45 @@ def _pick_best_lineup(candidates: list[dict]) -> dict[str, int]:
     return best_assignment
 
 
+def _regularize_util_assignment(recommended_slot_by_player: dict[int, str], results: list[dict]) -> None:
+    """
+    UTIL is a catch-all slot — the highest-value player who can fill a named
+    primary slot (G1/G2/F1/F2/C) should be there, not stuck in UTIL.
+    Iteratively swap the UTIL occupant with a lower-value named-slot occupant
+    when the position allows it, until no further improvement is possible.
+    """
+    player_map = {p["player_id"]: p for p in results}
+    primary_slots = ["G1", "G2", "F1", "F2", "C"]
+
+    changed = True
+    while changed:
+        changed = False
+        util_player_id = next(
+            (pid for pid, slot in recommended_slot_by_player.items() if slot == "UTIL"),
+            None,
+        )
+        if util_player_id is None:
+            break
+
+        util_player = player_map[util_player_id]
+        util_fp = float(util_player.get("predicted_fantasy_pts") or 0)
+
+        for slot in primary_slots:
+            occupant_id = next(
+                (pid for pid, s in recommended_slot_by_player.items() if s == slot),
+                None,
+            )
+            if occupant_id is None:
+                continue
+            occupant_fp = float(player_map[occupant_id].get("predicted_fantasy_pts") or 0)
+
+            if _matches_slot(util_player["position"], slot) and util_fp > occupant_fp:
+                recommended_slot_by_player[util_player_id] = slot
+                recommended_slot_by_player[occupant_id] = "UTIL"
+                changed = True
+                break
+
+
 def _assign_remaining_slots(results: list[dict], starter_assignment: dict[str, int]) -> dict[int, str]:
     recommended_slot_by_player = {player_id: slot for slot, player_id in starter_assignment.items()}
     assigned_ids = set(recommended_slot_by_player)
@@ -560,6 +599,7 @@ async def build_lineup_recommendation(conn, fantasy_team_id: int, include_commen
 
     starter_assignment = _pick_best_lineup(results)
     recommended_slot_by_player = _assign_remaining_slots(results, starter_assignment)
+    _regularize_util_assignment(recommended_slot_by_player, results)
 
     current_starter_ids = {player["player_id"] for player in results if player["roster_slot"] in STARTER_SLOTS}
     recommended_starter_ids = {

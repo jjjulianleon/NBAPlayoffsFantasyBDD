@@ -147,7 +147,13 @@ export default function TeamRoster() {
   async function applySuggestedLineup() {
     setApplyLoading(true);
     try {
-      const result = await api.applySuggestedLineup(id);
+      // Send the assignments the user already sees so the backend applies
+      // exactly what was displayed, regardless of any data refresh that may
+      // have run between loading the recommendation and clicking apply.
+      const assignments = lineup?.lineup
+        ?.filter((p) => p.recommended_slot)
+        .map((p) => ({ player_id: p.player_id, slot: p.recommended_slot }));
+      const result = await api.applySuggestedLineup(id, assignments);
       pushToast({
         title: 'Alineacion aplicada',
         message: `${result.starters} titulares y ${result.bench} suplentes reordenados automaticamente.`,

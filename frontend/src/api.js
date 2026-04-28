@@ -67,8 +67,11 @@ export const api = {
     request(`/fantasy/teams/${teamId}/roster/add`, { method: 'POST', body: JSON.stringify({ player_id: playerId, roster_slot: slot }) }),
   moveRosterPlayer: (teamId, playerId, targetSlot) =>
     request(`/fantasy/teams/${teamId}/roster/move`, { method: 'POST', body: JSON.stringify({ player_id: playerId, target_slot: targetSlot }) }),
-  applySuggestedLineup: (teamId) =>
-    request(`/fantasy/teams/${teamId}/roster/apply-lineup`, { method: 'POST' }),
+  applySuggestedLineup: (teamId, assignments) =>
+    request(`/fantasy/teams/${teamId}/roster/apply-lineup`, {
+      method: 'POST',
+      body: JSON.stringify(assignments ? { assignments } : {}),
+    }),
   dropPlayer: (teamId, playerId) =>
     request(`/fantasy/teams/${teamId}/roster/${playerId}`, { method: 'DELETE' }),
 
